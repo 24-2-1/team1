@@ -1,10 +1,13 @@
+import socket
+import threading
 import sqlite3
 import os
 import sys
 
+# DB 초기화 모듈 경로 추가
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
 from db import initialize_database
-import threading
+
 
 class EventSystem:
     def __init__(self, db_name="event_system.db"):
@@ -24,132 +27,139 @@ class EventSystem:
             if fetch_all:
                 return cursor.fetchall()
             conn.commit()
-class Event(EventSystem):
+
+
+class EventServer(EventSystem):
+    HOST = '0.0.0.0'
+    PORT = 5000
+    MAX_CONNECTIONS = 5
+
     def __init__(self):
         super().__init__()
-        self.lock = threading.Lock()
+        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server_socket.bind((self.HOST, self.PORT))
+        self.server_socket.listen(self.MAX_CONNECTIONS)
+        print(f"Server started on {self.HOST}:{self.PORT}")
 
-    def log_action(self, action, user_id=None, event_id=None):
-        """로그를 기록"""
-        self.execute_query(
-            'INSERT INTO logs (action, user_id, event_id) VALUES (?, ?, ?)',
-            (action, user_id, event_id)
-        )
+    def handle_client(self, client_socket, address):
+        """클라이언트 요청 처리"""
+        print(f"New connection from {address}")
+        try:
+            while True:
+                data = client_socket.recv(1024).decode()
+                if not data:
+                    break
+                print(f"Received data: {data}")
+                response = self.process_request(data)
+                client_socket.sendall(response.encode())
+        except Exception as e:
+            print(f"Error with client {address}: {e}")
+        finally:
+            client_socket.close()
+            print(f"Connection closed for {address}")
+
+    def process_request(self, data):
+        """클라이언트 요청 처리"""
+        try:
+            commands = data.split(' ')
+            command = commands[0].lower()
+
+            if command == 'register':
+                return self.register_user(*commands[1:])
+            elif command == 'login':
+                return self.login(*commands[1:])
+            elif command == 'reserve':
+                return self.reserve_ticket(*map(int, commands[1:]))
+            elif command == 'cancel':
+                return self.cancel_reservation(*map(int, commands[1:]))
+            elif command == 'logs':
+                return self.view_logs()
+            else:
+                return "Unknown command"
+        except TypeError:
+            return "Error: Invalid arguments"
+        except Exception as e:
+            print(f"Unexpected error in process_request: {e}")
+            return "Error: Request failed"
 
     def register_user(self, username, password):
         """사용자 등록"""
         try:
-            self.execute_query(
-                'INSERT INTO users (username, password) VALUES (?, ?)',
-                (username, password)
-            )
-            print(f"사용자 {username}가 성공적으로 등록되었습니다.")
-        except sqlite3.IntegrityError:
-            print(f"사용자 이름 {username}이 이미 존재합니다.")
+            if self.execute_query('SELECT 1 FROM users WHERE username = ?', (username,), fetch_one=True):
+                return f"Error: Username {username} already exists"
+            self.execute_query('INSERT INTO users (username, password) VALUES (?, ?)', (username, password))
+            return f"User {username} registered successfully"
+        except Exception as e:
+            print(f"Unexpected error during registration: {e}")
+            return "Error: Registration failed"
 
     def login(self, username, password):
-        """로그인 기능"""
-        user = self.execute_query(
-            "SELECT id FROM users WHERE username = ? AND password = ?",
-            (username, password),
-            fetch_one=True
-        )
-        if user:
-            print(f"로그인 성공! 사용자 ID: {user[0]}")
-            return user[0]
-        else:
-            print("로그인 실패! 사용자 이름 또는 비밀번호가 틀렸습니다.")
-            return None
+        """로그인"""
+        try:
+            user = self.execute_query(
+                "SELECT id FROM users WHERE username = ? AND password = ?",
+                (username, password),
+                fetch_one=True
+            )
+            return f"Login successful! User ID: {user[0]}" if user else "Error: Invalid username or password"
+        except Exception as e:
+            print(f"Unexpected error during login: {e}")
+            return "Error: Login failed"
 
     def reserve_ticket(self, user_id, event_id):
-        """티켓 예약 및 대기자 등록"""
-        with self.lock:
-            try:
-                available_tickets = self.execute_query(
-                    'SELECT available_tickets FROM events WHERE id = ?',
-                    (event_id,),
-                    fetch_one=True
-                )
-
-                if available_tickets and available_tickets[0] > 0:
-                    # 예약 처리
-                    self.execute_query(
-                        'INSERT INTO reservations (user_id, event_id) VALUES (?, ?)',
-                        (user_id, event_id)
-                    )
-                    self.execute_query(
-                        'UPDATE events SET available_tickets = available_tickets - 1 WHERE id = ?',
-                        (event_id,)
-                    )
-                    print(f"User {user_id} successfully reserved a ticket for event {event_id}.")
-                    self.log_action("reserve", user_id, event_id)
-                elif available_tickets:
-                    # 대기자 등록
-                    self.execute_query(
-                        'INSERT INTO waitlist (user_id, event_id) VALUES (?, ?)',
-                        (user_id, event_id)
-                    )
-                    print(f"User {user_id} added to waitlist for event {event_id}.")
-                    self.log_action("waitlist", user_id, event_id)
-                else:
-                    print(f"Event {event_id} does not exist.")
-            except Exception as e:
-                print(f"Error: {e}")
-
-    def cancel_reservation(self, user_id, event_id):
-        """예약 취소 및 대기자 처리"""
+        """티켓 예약"""
         try:
-            self.execute_query(
-                'DELETE FROM reservations WHERE user_id = ? AND event_id = ?',
-                (user_id, event_id)
-            )
-
-            # 대기자 처리
-            next_user = self.execute_query(
-                'SELECT user_id FROM waitlist WHERE event_id = ? ORDER BY id LIMIT 1',
+            available_tickets = self.execute_query(
+                'SELECT available_tickets FROM events WHERE id = ?',
                 (event_id,),
                 fetch_one=True
             )
-            if next_user:
-                self.execute_query(
-                    'INSERT INTO reservations (user_id, event_id) VALUES (?, ?)',
-                    (next_user[0], event_id)
-                )
-                self.execute_query(
-                    'DELETE FROM waitlist WHERE user_id = ? AND event_id = ?',
-                    (next_user[0], event_id)
-                )
-                print(f"User {next_user[0]} moved from waitlist to reservation for event {event_id}.")
-                self.log_action("reserve_from_waitlist", next_user[0], event_id)
-            else:
-                self.execute_query(
-                'UPDATE events SET available_tickets = available_tickets + 1 WHERE id = ?',
-                (event_id,)
-            )
-            print(f"Reservation for User {user_id} canceled for event {event_id}.")
-            self.log_action("cancel", user_id, event_id)
+
+            if not available_tickets:
+                return f"Error: Event {event_id} does not exist"
+            if available_tickets[0] <= 0:
+                return f"Error: No available tickets for event {event_id}"
+
+            self.execute_query('INSERT INTO reservations (user_id, event_id) VALUES (?, ?)', (user_id, event_id))
+            self.execute_query('UPDATE events SET available_tickets = available_tickets - 1 WHERE id = ?', (event_id,))
+            return f"User {user_id} reserved a ticket for event {event_id}"
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"Unexpected error during reservation: {e}")
+            return "Error: Reservation failed"
+
+    def cancel_reservation(self, user_id, event_id):
+        """예약 취소"""
+        try:
+            self.execute_query('DELETE FROM reservations WHERE user_id = ? AND event_id = ?', (user_id, event_id))
+            self.execute_query('UPDATE events SET available_tickets = available_tickets + 1 WHERE id = ?', (event_id,))
+            return f"Reservation canceled for User {user_id} on Event {event_id}"
+        except Exception as e:
+            print(f"Unexpected error during cancellation: {e}")
+            return "Error: Cancellation failed"
 
     def view_logs(self):
         """로그 조회"""
-        logs = self.execute_query('SELECT * FROM logs', fetch_all=True)
-        print("Logs:")
-        for log in logs:
-            print(log)
+        try:
+            logs = self.execute_query('SELECT * FROM logs', fetch_all=True)
+            return "\n".join([str(log) for log in logs])
+        except Exception as e:
+            print(f"Unexpected error during log retrieval: {e}")
+            return "Error: Log retrieval failed"
 
-# 실행 흐름
+    def start(self):
+        """서버 시작"""
+        initialize_database()
+        print("Database initialized")
+        try:
+            while True:
+                client_socket, addr = self.server_socket.accept()
+                threading.Thread(target=self.handle_client, args=(client_socket, addr)).start()
+        except KeyboardInterrupt:
+            print("Shutting down server")
+        finally:
+            self.server_socket.close()
+
+
 if __name__ == "__main__":
-    initialize_database()
-    system = Event()
-
-    # 사용자 등록 및 로그인
-    system.register_user("john_doe", "password123")
-    user_id = system.login("john_doe", "password123")
-
-    # 이벤트 예약
-    if user_id:
-        system.reserve_ticket(user_id, 1)
-
-    # 로그 조회
-    system.view_logs()
+    server = EventServer()
+    server.start()
