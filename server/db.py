@@ -1,4 +1,24 @@
 import sqlite3
+
+class DatabaseConnector:
+    def __init__(self, db_name="event_system.db"):
+        self.db_name = db_name
+
+    def connect(self):
+        """데이터베이스 연결 컨텍스트 매니저"""
+        return sqlite3.connect(self.db_name)
+
+    def execute_query(self, query, params=None, fetch_one=False, fetch_all=False):
+        """쿼리 실행 및 결과 반환"""
+        with self.connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, params or [])
+            if fetch_one:
+                return cursor.fetchone()
+            if fetch_all:
+                return cursor.fetchall()
+            conn.commit()
+            
 # 데이터베이스 초기화
 def initialize_database():
     conn = sqlite3.connect('event_system.db')
