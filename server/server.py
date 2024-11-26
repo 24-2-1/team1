@@ -1,5 +1,4 @@
 import socket
-import threading
 from concurrent.futures import ThreadPoolExecutor
 from db import initialize_database, DatabaseConnector
 from user_service import UserService
