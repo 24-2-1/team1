@@ -1,12 +1,9 @@
-from server import EventSystem
 import os
 import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
-from db import initialize_database
+# sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
+from db import initialize_database,DatabaseConnector
 
-
-
-class add_test(EventSystem):
+class add_test(DatabaseConnector):
     def drop_all_tables(self):
         """모든 테이블 삭제"""
         try:
