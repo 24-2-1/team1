@@ -1,4 +1,4 @@
-import sqlite3 ### 수정해보기
+import sqlite3
 import os
 
 class DatabaseConnector:
