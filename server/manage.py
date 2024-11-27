@@ -53,9 +53,64 @@ class add_test(DatabaseConnector):
             (name, description, date, available_tickets)
         )
         print(f"이벤트 '{name}'이 생성되었습니다.")
+        
+    def update_event(self, event_id, name=None, description=None, date=None, available_tickets=None):
+        """이벤트 내용 수정"""
+        fields = []
+        params = []
 
+        if name:
+            fields.append("name = ?")
+            params.append(name)
+        if description:
+            fields.append("description = ?")
+            params.append(description)
+        if date:
+            fields.append("date = ?")
+            params.append(date)
+        if available_tickets is not None:
+            fields.append("available_tickets = ?")
+            params.append(available_tickets)
+
+        if not fields:
+            raise ValueError("수정할 내용이 제공되지 않았습니다.")
+
+        # Update query 구성
+        params.append(event_id)
+        query = f"UPDATE events SET {', '.join(fields)} WHERE id = ?"
+        self.execute_query(query, params)
+        print(f"이벤트 ID {event_id}가 성공적으로 수정되었습니다.")
+        
+    def get_event_reservations(self, event_id):
+        """특정 이벤트의 예약자 목록 조회"""
+        query = '''
+        SELECT users.id, users.username
+        FROM reservations
+        JOIN users ON reservations.user_id = users.id
+        WHERE reservations.event_id = ?
+        '''
+        reservations = self.execute_query(query, (event_id,), fetch_all=True)
+
+        if reservations:
+            print(f"이벤트 ID {event_id}의 예약자 목록:")
+            for user_id, username in reservations:
+                print(f"- 사용자 ID: {user_id}, 사용자명: {username}")
+        else:
+            print(f"이벤트 ID {event_id}에 대한 예약자가 없습니다.")
+
+        
+        
 if __name__ == "__main__":
     initialize_database()
     system = add_test()
-    # system.create_event("Tech Conference", "A conference about tech.", "2024-12-01", 1)
-    system.drop_all_tables()
+    system.create_event("Tech Conference", "A conference about tech.", "2024-12-01", 1)
+    
+    # system.drop_all_tables()
+    system.update_event(
+        event_id=1,
+        description="pabc",
+        date="2024-12-25",
+        available_tickets=100
+    )
+    
+    

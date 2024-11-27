@@ -22,6 +22,7 @@ class DatabaseConnector:
                 return cursor.fetchall()
             conn.commit()
             
+
 # 데이터베이스 초기화
 def initialize_database():
     """데이터베이스 초기화"""
