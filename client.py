@@ -73,9 +73,4 @@ if __name__ == "__main__":
             break
         else:
             print("Invalid choice. Please try again.")
-# 명국 테스트 입니다.
-# 명국 테스트 입니다.
-# 명국 테스트 입니다.
-# 개발자 테스트입니다.
-
     client.close()
