@@ -56,9 +56,9 @@ if __name__ == "__main__":
 
     while True:
         print("\nAvailable options:")
-        print("1. Register")
-        print("2. Login (Not implemented)")
-        print("3. Exit")
+        print("1. 회원가입")
+        print("2. 로그인")
+        print("3. 종료하기")
         choice = input("Enter your choice: ")
 
         if choice == "1":
