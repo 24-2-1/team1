@@ -1,6 +1,6 @@
 from db import initialize_database,DatabaseConnector
 
-class add_test(DatabaseConnector):
+class manage(DatabaseConnector):
     def drop_all_tables(self):
         """모든 테이블 삭제"""
         try:
@@ -99,18 +99,70 @@ class add_test(DatabaseConnector):
             print(f"이벤트 ID {event_id}에 대한 예약자가 없습니다.")
 
         
-        
+class UserInputHandler:
+    """사용자로부터 입력을 처리하는 클래스"""
+    @staticmethod
+    def get_event_data():
+        name = input("이벤트 이름: ")
+        description = input("이벤트 설명: ")
+        date = input("이벤트 날짜 (YYYY-MM-DD): ")
+        available_tickets = int(input("사용 가능한 티켓 수: "))
+        return name, description, date, available_tickets
+
+    @staticmethod
+    def get_event_id():
+        return int(input("수정할 이벤트의 ID를 입력하세요: "))
+
+class RequestData(manage):
+    """Database 관리 및 입력 데이터 처리"""
+    def create_event_with_input(self):
+        event_data = UserInputHandler.get_event_data()
+        self.create_event(*event_data)
+
+    def update_event_with_input(self):
+        event_id = UserInputHandler.get_event_id()
+        print("수정할 필드만 입력하고, 생략할 필드는 Enter를 누르세요.")
+        name = input("수정할 이름: ") or None
+        description = input("수정할 설명: ") or None
+        date = input("수정할 날짜 (YYYY-MM-DD): ") or None
+        available_tickets = input("수정할 티켓 수: ")
+        available_tickets = int(available_tickets) if available_tickets else None
+        self.update_event(event_id, name, description, date, available_tickets)
+
+# Main 실행부
 if __name__ == "__main__":
-    initialize_database()
-    system = add_test()
-    system.create_event("Tech Conference", "A conference about tech.", "2024-12-01", 1)
+    system = RequestData()
     
-    # system.drop_all_tables()
-    system.update_event(
-        event_id=1,
-        description="pabc",
-        date="2024-12-25",
-        available_tickets=100
-    )
+
+    while True:
+        initialize_database()
+        print("0. 종료하기")
+        print("1. 전체 테이블 삭제")
+        print("2. 전체 테이블의 데이터 삭제")
+        print("3. 특정 테이블 삭제")
+        print("4. 이벤트 생성")
+        print("5. 이벤트 내용 수정")
+        print("6. 이벤트 예약자 목록 조회")
+
+        choice = input("Enter your choice: ")
+
+        if choice == "0":
+            break
+        elif choice == "1":
+            system.drop_all_tables()
+        elif choice == "2":
+            system.all_delete()
+        elif choice == "3":
+            table_name = input("삭제할 테이블 이름: ")
+            system.drop_table(table_name)
+        elif choice == "4":
+            system.create_event_with_input()
+        elif choice == "5":
+            system.update_event_with_input()
+        elif choice == "6":
+            event_id = int(input("예약자 목록을 확인할 이벤트 ID: "))
+            system.get_event_reservations(event_id)
+        else:
+            print("올바른 번호를 입력하세요.")
     
     
