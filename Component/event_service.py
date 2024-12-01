@@ -56,3 +56,16 @@ class AsyncEventService:
                     await conn.commit()
 
                 return f"Reservation canceled for User {user_id} on Event {event_id}"
+    
+    async def get_all_events(self):
+        """모든 이벤트 조회"""
+        async with self.db_connector.connect() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute("SELECT id, name, description, date, available_tickets FROM events")
+                events = await cursor.fetchall()
+                if events:
+                    return "\n".join(
+                        f"ID: {event[0]}, Name: {event[1]}, Description: {event[2]}, Date: {event[3]}, Tickets: {event[4]}"
+                        for event in events
+                    )
+                return "No events available."

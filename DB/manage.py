@@ -132,6 +132,34 @@ class RequestData(manage):
         available_tickets = int(available_tickets) if available_tickets else None
         await self.update_event(event_id, name, description, date, available_tickets)
 
+async def first_data():
+    """초기 이벤트 데이터 삽입"""
+    connector = AsyncDatabaseConnector()
+    async with connector as conn:
+        # 이벤트가 이미 존재하는지 확인
+        event_count = await connector.execute_query(
+            "SELECT COUNT(*) FROM events", fetch_one=True
+        )
+        
+        if event_count and event_count[0] == 0:  # 이벤트 테이블이 비어있는 경우 초기 데이터 삽입
+            initial_events = [
+                ("웃는남자", "뮤지컬 웃는남자", "2025-01-01", 100),
+                ("베르테르", "뮤지컬 베르테르", "2025-01-13", 80),
+                ("킹키부츠", "뮤지컬 킹키부츠", "2025-01-31", 120)
+            ]
+            # 데이터를 한 번에 삽입
+            for event in initial_events:
+                await connector.execute_query(
+                    "INSERT INTO events (name, description, date, available_tickets) VALUES (?, ?, ?, ?)",
+                    params=event
+                )
+            print("초기 이벤트 데이터가 성공적으로 삽입되었습니다.")
+        else:
+            print("이벤트 데이터가 이미 존재합니다.")
+
+
+
+
 # Main 실행부
 if __name__ == "__main__":
     system = RequestData()
@@ -139,6 +167,7 @@ if __name__ == "__main__":
     async def main():
         while True:
             await initialize_database()
+            await first_data()
             print("0. 종료하기")
             print("1. 전체 테이블 삭제")
             print("2. 전체 테이블의 데이터 삭제")
@@ -169,3 +198,4 @@ if __name__ == "__main__":
                 print("올바른 번호를 입력하세요.")
 
     asyncio.run(main())
+
