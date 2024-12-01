@@ -89,7 +89,7 @@ class AsyncEventService:
 
     async def get_all_events(self):
         """모든 이벤트 조회"""
-        async with self.db_connector.connect() as conn:
+        async with self.db_connector as conn:  # 수정된 컨텍스트 매니저 사용
             async with conn.cursor() as cursor:
                 # 모든 이벤트 조회
                 await cursor.execute("SELECT id, name, description, date, available_tickets FROM events")

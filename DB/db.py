@@ -9,21 +9,27 @@ class AsyncDatabaseConnector:
         self.connection = None
 
     async def connect(self):
+        """데이터베이스 연결"""
         if not self.connection:
             self.connection = await aiosqlite.connect(self.db_path)
         return self.connection
+
     async def __aenter__(self):
-        self.connection = await self.connect()
+        """비동기 컨텍스트 매니저 진입"""
+        if not self.connection:
+            self.connection = await aiosqlite.connect(self.db_path)
         return self.connection
 
     async def __aexit__(self, exc_type, exc_value, traceback):
+        """비동기 컨텍스트 매니저 종료"""
         if self.connection:
             await self.connection.close()
-            
+            self.connection = None
+
     async def execute_query(self, query, params=None, fetch_one=False, fetch_all=False):
         """쿼리 실행 및 결과 반환"""
         try:
-            async with aiosqlite.connect(self.db_path) as conn:
+            async with self.connect() as conn:
                 async with conn.cursor() as cursor:
                     await cursor.execute(query, params or [])
                     if fetch_one:
@@ -34,7 +40,7 @@ class AsyncDatabaseConnector:
         except Exception as e:
             print(f"Error executing query: {e}")
 
-
+# 데이터베이스 초기화 함수
 async def initialize_database():
     """데이터베이스 초기화"""
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -93,19 +99,20 @@ async def initialize_database():
             # 병렬 실행
             await asyncio.gather(*tasks)
 
-            # 이벤트 데이터 삽입
-            await cursor.execute("SELECT COUNT(*) FROM events")
-            event_count = await cursor.fetchone()
-            if event_count[0] == 0:  # 이벤트가 없을 경우 데이터 삽입
-                initial_events = [
-                    ("웃는남자", "뮤지컬 웃는남자", "2025-01-01", 100),
-                    ("베르테르", "뮤지컬 베르테르", "2025-01-13", 80),
-                    ("킹키부츠", "뮤지컬 킹키부츠", "2025-01-31", 120)
-                ]
-                await cursor.executemany(
-                    "INSERT INTO events (name, description, date, available_tickets) VALUES (?, ?, ?, ?)",
-                    initial_events
-                )
+            # 기존 데이터 삭제 및 ID 초기화
+            await cursor.execute("DELETE FROM events")
+            await cursor.execute("DELETE FROM sqlite_sequence WHERE name='events'")
+
+            # 초기 데이터 삽입
+            initial_events = [
+                ("웃는남자", "뮤지컬 웃는남자", "2025-01-01", 100),
+                ("베르테르", "뮤지컬 베르테르", "2025-01-13", 80),
+                ("킹키부츠", "뮤지컬 킹키부츠", "2025-01-31", 120)
+            ]
+            await cursor.executemany(
+                "INSERT INTO events (name, description, date, available_tickets) VALUES (?, ?, ?, ?)",
+                initial_events
+            )
 
             await conn.commit()
 

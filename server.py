@@ -26,13 +26,11 @@ class CommandHandler:
 
             # 명령 처리 로직
             if command in self.command_map:
-                if command == 'view_events':  # view_events는 인자가 필요하지 않음
+                if command == 'view_events':  # view_events는 인자가 필요 없음
                     return await self.command_map[command]([])
-                else:
-                    return await self.command_map[command](commands[1:])
+                return await self.command_map[command](commands[1:])
             else:
                 return "Error: Unknown command"
-
         except TypeError:
             return "Error: Invalid arguments"
         except Exception as e:
