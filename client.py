@@ -18,15 +18,19 @@ class EventClient:
     def send_request(self, request):
         """서버로 요청 전송"""
         try:
-            self.client_socket.sendall(request.encode())
-            response = self.client_socket.recv(1024).decode()
+            # request가 리스트인 경우, 이를 문자열로 변환
+            if isinstance(request, list):
+                request = "\n".join(str(item) for item in request)  # 리스트를 문자열로 변환
+
+            # 이제 request는 문자열이므로, encode()를 안전하게 사용할 수 있음
+            self.client_socket.sendall(request.encode())  # 문자열로 변환한 후 encode
+            response = self.client_socket.recv(1024).decode()  # 응답 받기
             return response
-        except BrokenPipeError:
-            print("Error: Connection to the server was lost.")
-            return None
         except Exception as e:
             print(f"Error during communication with server: {e}")
             return None
+
+
 
     def close(self):
         """서버 연결 종료"""
@@ -59,7 +63,10 @@ class EventClient:
         """이벤트 목록 조회"""
         command = "view_events"
         response = self.send_request(command)
-        print(f"Available events:\n{response}")
+
+        print(f"Available events:\n{response}")  # 서버에서 받은 응답 출력
+
+
 
     def check_notifications(self):
         """알림 확인"""
@@ -83,9 +90,9 @@ if __name__ == "__main__":
         print("1. 회원가입")
         print("2. 로그인")
         print("3. 종료하기")
-        print("3. 이벤트 목록")
-        print("3. 알림확인")
-        print("3. 예약하기")
+        print("4. 이벤트 목록")
+        print("5. 알림확인")
+        print("6. 예약하기")
         
         choice = input("Enter your choice: ")
 

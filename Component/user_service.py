@@ -1,5 +1,8 @@
+from DB.db import AsyncDatabaseConnector
+from .event_service import log_action
+
 class AsyncUserService:
-    def __init__(self, db_connector):
+    def __init__(self, db_connector: AsyncDatabaseConnector):
         self.db_connector = db_connector
 
     async def register_user(self, username, password):
@@ -9,12 +12,15 @@ class AsyncUserService:
                 'SELECT 1 FROM users WHERE username = ?', (username,), fetch_one=True
             )
             if existing_user:
-                return f"Error: Username {username} already exists"
+                return f"Error: Username '{username}' already exists"
             
             await self.db_connector.execute_query(
                 'INSERT INTO users (username, password) VALUES (?, ?)', (username, password)
             )
-            return f"User {username} registered successfully"
+            
+            # 사용자 등록 로그 기록
+            await log_action(self.db_connector, username, "User registered successfully")
+            return f"User '{username}' registered successfully"
         except Exception as e:
             print(f"Unexpected error during registration: {e}")
             return "Error: Registration failed"
@@ -27,7 +33,16 @@ class AsyncUserService:
                 (username, password),
                 fetch_one=True
             )
-            return f"Login successful! User ID: {user[0]}" if user else "Error: Invalid username or password"
+            
+            if user:
+                # 로그인 성공 로그 기록
+                await log_action(self.db_connector, username, "Login successful")
+                return f"Login successful! User ID: {user[0]}"
+            else:
+                return "Error: Invalid username or password"
         except Exception as e:
             print(f"Unexpected error during login: {e}")
             return "Error: Login failed"
+
+
+
