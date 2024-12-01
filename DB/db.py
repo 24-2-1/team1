@@ -29,28 +29,34 @@ class AsyncDatabaseConnector:
     async def execute_query(self, query, params=None, fetch_one=False, fetch_all=False):
         """쿼리 실행 및 결과 반환"""
         try:
+            print(f"Executing query: {query} with params: {params}")  # 디버깅 로그
             async with self.connect() as conn:
                 async with conn.cursor() as cursor:
                     await cursor.execute(query, params or [])
                     if fetch_one:
                         return await cursor.fetchone()
+                        print(f"Query fetch_one result: {result}")  # 디버깅 로그
+                        return result
                     if fetch_all:
+                        result = await cursor.fetchall()
+                        print(f"Query fetch_all result: {result}")  # 디버깅 로그
                         return await cursor.fetchall()
                     await conn.commit()
+                    print("Commit successful")  # 디버깅 로그
         except Exception as e:
             print(f"Error executing query: {e}")
 
 # 데이터베이스 초기화 함수
-async def initialize_database():
-    """데이터베이스 초기화"""
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    db_path = os.path.join(base_dir, "event_system.db")
+    async def initialize_database():
+        """데이터베이스 초기화"""
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        db_path = os.path.join(base_dir, "event_system.db")
 
-    connector = AsyncDatabaseConnector(db_name=db_path)
-    async with connector as conn:
-        async with conn.cursor() as cursor:
+        connector = AsyncDatabaseConnector(db_name=db_path)
+        async with connector as conn:
+            async with conn.cursor() as cursor:
             # 테이블 생성
-            tasks = [
+                tasks = [
                 cursor.execute('''
                 CREATE TABLE IF NOT EXISTS users (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
