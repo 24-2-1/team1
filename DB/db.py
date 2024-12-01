@@ -35,7 +35,6 @@ class AsyncDatabaseConnector:
             print(f"Error executing query: {e}")
 
 
-# 데이터베이스 초기화
 async def initialize_database():
     """데이터베이스 초기화"""
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -44,7 +43,7 @@ async def initialize_database():
     connector = AsyncDatabaseConnector(db_name=db_path)
     async with connector as conn:
         async with conn.cursor() as cursor:
-            # 병렬로 쿼리 실행
+            # 테이블 생성
             tasks = [
                 cursor.execute('''
                 CREATE TABLE IF NOT EXISTS users (
@@ -90,9 +89,23 @@ async def initialize_database():
                 )
                 ''')
             ]
-            
-            # 병렬 실행 및 완료 대기
+
+            # 병렬 실행
             await asyncio.gather(*tasks)
+
+            # 이벤트 데이터 삽입
+            await cursor.execute("SELECT COUNT(*) FROM events")
+            event_count = await cursor.fetchone()
+            if event_count[0] == 0:  # 이벤트가 없을 경우 데이터 삽입
+                initial_events = [
+                    ("웃는남자", "뮤지컬 웃는남자", "2025-01-01", 100),
+                    ("베르테르", "뮤지컬 베르테르", "2025-01-13", 80),
+                    ("킹키부츠", "뮤지컬 킹키부츠", "2025-01-31", 120)
+                ]
+                await cursor.executemany(
+                    "INSERT INTO events (name, description, date, available_tickets) VALUES (?, ?, ?, ?)",
+                    initial_events
+                )
+
             await conn.commit()
-        
 

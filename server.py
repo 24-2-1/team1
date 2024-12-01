@@ -14,7 +14,8 @@ class CommandHandler:
             'register': lambda args: self.user_service.register_user(*args),
             'login': lambda args: self.user_service.login(*args),
             'reserve': lambda args: self.event_service.reserve_ticket(*map(int, args)),
-            'cancel': lambda args: self.event_service.cancel_reservation(*map(int, args))
+            'cancel': lambda args: self.event_service.cancel_reservation(*map(int, args)),
+            'view_events': lambda args: self.event_service.get_all_events()  # 수정
         }
 
     async def handle_command(self, data):
@@ -23,8 +24,12 @@ class CommandHandler:
             commands = data.strip().split(' ')
             command = commands[0].lower()
 
+            # 명령 처리 로직
             if command in self.command_map:
-                return await self.command_map[command](commands[1:])
+                if command == 'view_events':  # view_events는 인자가 필요하지 않음
+                    return await self.command_map[command]([])
+                else:
+                    return await self.command_map[command](commands[1:])
             else:
                 return "Error: Unknown command"
 
