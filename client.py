@@ -59,9 +59,9 @@ if __name__ == "__main__":
         print("1. 회원가입")
         print("2. 로그인")
         print("3. 종료하기")
-        print("3. 이벤트 목록")
-        print("3. 알림확인")
-        print("3. 예약하기")
+        print("4. 이벤트 목록")
+        print("5. 알림확인")
+        print("6. 예약하기")
         
         choice = input("Enter your choice: ")
 
