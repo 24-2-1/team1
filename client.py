@@ -98,7 +98,6 @@ if __name__ == "__main__":
             break
         elif choice == "4":
             command = "view_events"  # command 변수 정의
-            client.view_events()
             response = client.send_request(command)
             print(f"Available events:\n{response}")
         elif choice == "5":
