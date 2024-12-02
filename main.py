@@ -22,16 +22,6 @@ class CLIApp:
         print("0. 로그아웃")  # 로그아웃 선택지
         # 뒤로가기는 로그인 후 메뉴에서는 제외
 
-    def handle_user_action(self, choice):
-        """로그인한 사용자의 선택에 따른 행동 처리 함수"""
-        actions = {
-            "1": self.handle_reservation,  # 티켓 예약 처리
-            "2": self.handle_waitlist,  # 대기자 등록 처리
-            "3": self.check_notifications,  # 알림 확인 처리
-            "0": self.logout,  # 로그아웃 처리
-        }
-        return self._handle_action(actions, choice)  # 선택한 액션 처리
-
     def handle_guest_action(self, choice):
         """로그인하지 않은 사용자의 선택에 따른 행동 처리 함수"""
         actions = {
@@ -42,6 +32,23 @@ class CLIApp:
         }
         return self._handle_action(actions, choice)  # 선택한 액션 처리
 
+    def handle_logged_in_action(self, choice):
+        """로그인한 사용자의 선택에 따른 행동 처리 함수"""
+        actions = {
+            "1": self.handle_reservation,  # 티켓 예약 처리
+            "2": self.handle_waitlist,  # 대기자 등록 처리
+            "3": self.check_notifications,  # 알림 확인 처리
+            "0": self.logout,  # 로그아웃 처리
+        }
+        return self._handle_action(actions, choice)  # 선택한 액션 처리
+    
+    def handle_action(self, choice):
+        """사용자의 선택에 따른 행동 처리 함수"""
+        if self.logged_in_user:
+            return self.handle_logged_in_action(choice)
+        else:
+            return self.handle_guest_action(choice)
+
     def _handle_action(self, actions, choice):
         """공통된 행동 처리 로직: 유효한 선택인지 확인 후 해당 처리 함수 호출"""
         action = actions.get(choice)  # 사용자가 선택한 옵션에 맞는 액션을 찾음
@@ -51,7 +58,7 @@ class CLIApp:
         else:
             print("올바르지 않은 선택입니다. 다시 시도하세요.")  # 잘못된 선택 처리
             return False
-
+        
     def go_back(self):
         """뒤로가기 버튼을 눌렀을 때 이전 메뉴로 돌아가는 함수"""
         print("이전 메뉴로 돌아갑니다.")
