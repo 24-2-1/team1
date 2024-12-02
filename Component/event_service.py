@@ -14,6 +14,31 @@ class AsyncEventService:
                 self.locks[event_id] = asyncio.Lock()
             return self.locks[event_id]
 
+    async def log_activity(self, user_id, message):
+        """사용자 활동 로그 기록"""
+        async with self.db_connector.connect() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(
+                    "INSERT INTO logs (user_id, message) VALUES (?, ?)", (user_id, message)
+                )
+                await conn.commit()
+
+    async def notify_user_logs(self, user_id):
+        """사용자 활동 로그 알림"""
+        async with self.db_connector.connect() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(
+                    "SELECT message, timestamp FROM logs WHERE user_id = ? ORDER BY timestamp DESC LIMIT 10",
+                    (user_id,)
+                )
+                logs = await cursor.fetchall()
+                if logs:
+                    print("📋 Recent Activity Logs:")
+                    for log in logs:
+                        print(f"- {log[1]}: {log[0]}")
+                else:
+                    print("📋 No recent activity logs found.")
+
     async def reserve_ticket(self, user_id, event_id):
         """티켓 예약"""
         event_lock = await self.get_event_lock(event_id)

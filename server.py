@@ -25,11 +25,13 @@ class CommandHandler:
             commands = data.strip().split(' ')
             command = commands[0].lower()
 
+            # 명령 처리 로직
             if command in self.command_map:
+                if command == 'view_events':  # view_events는 인자가 필요 없음
+                    return await self.command_map[command]([])
                 return await self.command_map[command](commands[1:])
             else:
                 return "Error: Unknown command"
-
         except TypeError:
             return "Error: Invalid arguments"
         except Exception as e:

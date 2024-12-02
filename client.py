@@ -1,11 +1,11 @@
 import socket
 
+
 class EventClient:
     def __init__(self, host='127.0.0.1', port=5000):
         self.host = host
         self.port = port
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        
 
     def connect(self):
         """서버에 연결"""
@@ -63,10 +63,7 @@ class EventClient:
         """이벤트 목록 조회"""
         command = "view_events"
         response = self.send_request(command)
-
-        print(f"Available events:\n{response}")  # 서버에서 받은 응답 출력
-
-
+        print(f"Available events:\n{response}")
 
     def check_notifications(self):
         """알림 확인"""
