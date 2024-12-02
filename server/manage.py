@@ -127,13 +127,18 @@ class RequestData(manage):
         date = input("수정할 날짜 (YYYY-MM-DD): ") or None
         available_tickets = input("수정할 티켓 수: ")
         available_tickets = int(available_tickets) if available_tickets else None
+<<<<<<< HEAD:server/manage.py
         self.update_event(event_id, name, description, date, available_tickets)
+=======
+        await self.update_event(event_id, name, description, date, available_tickets)
+>>>>>>> parent of dd24b72 (d):DB/manage.py
 
 # Main 실행부
 if __name__ == "__main__":
     system = RequestData()
     
 
+<<<<<<< HEAD:server/manage.py
     while True:
         initialize_database()
         print("0. 종료하기")
@@ -166,3 +171,38 @@ if __name__ == "__main__":
             print("올바른 번호를 입력하세요.")
     
     
+=======
+    async def main():
+        while True:
+            await initialize_database()
+            print("0. 종료하기")
+            print("1. 전체 테이블 삭제")
+            print("2. 전체 테이블의 데이터 삭제")
+            print("3. 특정 테이블 삭제")
+            print("4. 이벤트 생성")
+            print("5. 이벤트 내용 수정")
+            print("6. 이벤트 예약자 목록 조회")
+
+            choice = input("Enter your choice: ")
+
+            if choice == "0":
+                break
+            elif choice == "1":
+                await system.drop_all_tables()
+            elif choice == "2":
+                await system.all_delete()
+            elif choice == "3":
+                table_name = input("삭제할 테이블 이름: ")
+                await system.drop_table(table_name)
+            elif choice == "4":
+                await system.create_event_with_input()
+            elif choice == "5":
+                await system.update_event_with_input()
+            elif choice == "6":
+                event_id = int(input("예약자 목록을 확인할 이벤트 ID: "))
+                await system.get_event_reservations(event_id)
+            else:
+                print("올바른 번호를 입력하세요.")
+
+    asyncio.run(main())
+>>>>>>> parent of dd24b72 (d):DB/manage.py
