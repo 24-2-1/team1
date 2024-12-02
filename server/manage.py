@@ -127,7 +127,6 @@ class RequestData(manage):
         date = input("수정할 날짜 (YYYY-MM-DD): ") or None
         available_tickets = input("수정할 티켓 수: ")
         available_tickets = int(available_tickets) if available_tickets else None
-        await self.update_event(event_id, name, description, date, available_tickets)
 
 # Main 실행부
 if __name__ == "__main__":
