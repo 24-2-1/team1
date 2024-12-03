@@ -14,7 +14,7 @@ class AsyncUserService:
             if existing_user:
                 return f"Error: Username '{userid}' already exists"
             
-            await self.db_connector.execute_query(
+            await self.db_connector.execute_query( 
                 'INSERT INTO users (userid, password) VALUES (?, ?)', (userid, password)
             )
             

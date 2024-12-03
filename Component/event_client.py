@@ -47,9 +47,10 @@ class EventClient:
             password = input("Enter password: ")
             if password == "0":
                 self.register()
-            command = f"register {name} {password}"
-            response = self.send_request(command)
-            print(f"Server response: {response}")
+            else:
+                command = f"register {name} {password}"
+                response = self.send_request(command)
+                print(f"Server response: {response}")
 
             if "already exists" in response:
                 print("이미 회원가입하셨습니다.")
