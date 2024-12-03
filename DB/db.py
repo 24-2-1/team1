@@ -49,7 +49,7 @@ async def initialize_database():
                 cursor.execute('''
                 CREATE TABLE IF NOT EXISTS users (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    username TEXT UNIQUE NOT NULL,
+                    userid TEXT UNIQUE NOT NULL,
                     password TEXT NOT NULL
                 )
                 '''),

@@ -1,10 +1,6 @@
-from socket_client import ClientSocket  # ClientSocket 클래스를 임포트하여 서버와의 통신 처리
 
-class CLIApp:
-    def __init__(self):
-        self.logged_in_user = None  # 로그인된 사용자 정보 (없으면 None)
-        self.client_socket = ClientSocket()  # 서버와 통신을 위한 클라이언트 소켓 객체
 
+class CLIAp:
     def show_initial_menu(self):
         """초기 메뉴를 화면에 출력하는 함수"""
         print("\n===== 초기 메뉴 =====")
@@ -19,18 +15,8 @@ class CLIApp:
         print("1. 티켓 예약")  # 티켓 예약 선택지
         print("2. 대기자 등록")  # 대기자 등록 선택지
         print("3. 알림 확인")  # 알림 확인 선택지
-        print("0. 로그아웃")  # 로그아웃 선택지
+        print("9. 로그아웃")  # 로그아웃 선택지
         # 뒤로가기는 로그인 후 메뉴에서는 제외
-
-    def handle_user_action(self, choice):
-        """로그인한 사용자의 선택에 따른 행동 처리 함수"""
-        actions = {
-            "1": self.handle_reservation,  # 티켓 예약 처리
-            "2": self.handle_waitlist,  # 대기자 등록 처리
-            "3": self.check_notifications,  # 알림 확인 처리
-            "0": self.logout,  # 로그아웃 처리
-        }
-        return self._handle_action(actions, choice)  # 선택한 액션 처리
 
     def handle_guest_action(self, choice):
         """로그인하지 않은 사용자의 선택에 따른 행동 처리 함수"""
@@ -41,6 +27,16 @@ class CLIApp:
             "0": self.exit_program,  # 프로그램 종료 처리
         }
         return self._handle_action(actions, choice)  # 선택한 액션 처리
+    def handle_user_action(self, choice):
+        """로그인한 사용자의 선택에 따른 행동 처리 함수"""
+        actions = {
+            "1": self.handle_reservation,  # 티켓 예약 처리
+            "2": self.handle_waitlist,  # 대기자 등록 처리
+            "3": self.check_notifications,  # 알림 확인 처리
+            "0": self.logout,  # 로그아웃 처리
+        }
+        return self._handle_action(actions, choice)  # 선택한 액션 처리
+
 
     def _handle_action(self, actions, choice):
         """공통된 행동 처리 로직: 유효한 선택인지 확인 후 해당 처리 함수 호출"""
