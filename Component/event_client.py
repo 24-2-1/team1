@@ -79,7 +79,7 @@ class EventClient:
         response = self.send_request(command)
 
         print(f"Available events:\n{response}")  # 서버에서 받은 응답 출력
-        choice = input("메뉴를 보시겠습니까")
+        input("메뉴를 보시겠습니까")
         self.run_menu()
 
 
