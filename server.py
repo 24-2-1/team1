@@ -16,7 +16,8 @@ class CommandHandler:
             'reserve': lambda args: self.event_service.reserve_ticket(*map(int, args)),
             'cancel': lambda args: self.event_service.cancel_reservation(*map(int, args)),
             'view_events': lambda args: self.event_service.get_all_events(),  # 수정
-            'view_logs': lambda args: self.event_service.get_user_logs(int(args[0]))  # 추가된 명령어
+            'view_logs': lambda args: self.event_service.get_user_logs(int(args[0])),  # 추가된 명령어
+            'view_seats': lambda args: self.event_service.display_seat_map(int(args[0]))  # 좌석 조회 추가
         }
 
     async def handle_command(self, data):
