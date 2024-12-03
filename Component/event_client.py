@@ -41,7 +41,12 @@ class EventClient:
         while True:
             print("메뉴창으로 돌아가려면 0번 입력")
             name = input("Enter userid: ")
+            if name == "0":
+                self.run_menu()
+            print("id를 다시 입력하려면 0번 입력")
             password = input("Enter password: ")
+            if password == "0":
+                self.register()
             command = f"register {name} {password}"
             response = self.send_request(command)
             print(f"Server response: {response}")
@@ -53,12 +58,20 @@ class EventClient:
 
     def login(self):
         """로그인 요청 처리"""
-        name = input("Enter userid: ")
-        password = input("Enter password: ")
-        command = f"login {name} {password}"
-        response = self.send_request(command)
-        self.login_user = response
-        print(f"로그인 성공")
+        print("이전 화면으로 가시려면 0번 입력")
+        while True:
+            name = input("Enter userid: ")
+            if name == "0":
+                self.run_menu()
+            password = input("Enter password: ")
+            command = f"login {name} {password}"
+            response = self.send_request(command)
+            if response == "로그인 실패":
+                print(response)
+            else:
+                self.login_user = response
+                print("로그인 성공")
+                break  # while 문을 종료
 
     def view_events(self):
         """이벤트 목록 조회"""
@@ -66,6 +79,8 @@ class EventClient:
         response = self.send_request(command)
 
         print(f"Available events:\n{response}")  # 서버에서 받은 응답 출력
+        choice = input("메뉴를 보시겠습니까")
+        self.run_menu()
 
 
 

@@ -20,25 +20,23 @@ class ViewClient(EventClient):
         print("2. 티켓 예약")  # 티켓 예약 선택지
         print("3. 알림 확인")  # 알림 확인 선택지
         print("9. 로그아웃")  # 로그아웃 선택지
-        print("0. 종료")  # 로그아웃 선택지
+        print("0. 종료")  
 
     def handle_guest_action(self, choice):
         """로그인하지 않은 사용자의 선택에 따른 행동 처리 함수"""
         actions = {
             "1": self.register,  # 회원가입 처리
             "2": self.login,  # 로그인 처리
-            "3": self.book_event, #뮤지컬 목록
-            "9": self.exit_program,  # 프로그램 종료 처리
+            "3": self.view_events, #뮤지컬 목록
         }
         return self._handle_action(actions, choice)  # 선택한 액션 처리
     
     def handle_user_action(self, choice):
         """로그인한 사용자의 선택에 따른 행동 처리 함수"""
         actions = {
-            "1": self.book_event,  # 티켓 예약 처리
-            "2": self.handle_waitlist,  
+            "1": self.view_events,  # 티켓 예약 처리
             "3": self.check_notifications,  # 알림 확인 처리
-            "0": self.logout,  # 로그아웃 처리
+            "9": self.logout,  # 로그아웃 처리
         }
         return self._handle_action(actions, choice)  # 선택한 액션 처리
 
@@ -52,34 +50,38 @@ class ViewClient(EventClient):
         else:
             print("올바르지 않은 선택입니다. 다시 시도하세요.")  # 잘못된 선택 처리
             return False
-    def loing_menu(self):
-        pass
-    def go_back(self):
-        """뒤로가기 버튼을 눌렀을 때 이전 메뉴로 돌아가는 함수"""
-        print("이전 메뉴로 돌아갑니다.")
     
     def logout(self):
         self.login_user = None
     
-    """수정필요"""
-    def run(self): 
-        self.connect()
+    def run_menu(self):
         """프로그램 실행 함수: 사용자 선택에 따라 메뉴를 반복 출력하며 처리"""
         while True:
             if self.login_user:
                 # 로그인된 상태에서 메뉴 출력
                 self.show_logged_in_menu()
                 choice = input("메뉴를 선택하세요: ").strip()
+                if choice == "0":
+                    print("프로그램을 종료합니다.")
+                    self.close()  # 연결 종료
+                    exit()  # 프로그램 완전히 종료
                 if not self.handle_user_action(choice):  # 잘못된 선택 시 다시 시도
                     continue
             else:
                 # 로그인되지 않은 상태에서 메뉴 출력
                 self.show_initial_menu()
                 choice = input("메뉴를 선택하세요: ").strip()
+                if choice == "0":
+                    print("프로그램을 종료합니다.")
+                    self.close()  # 연결 종료
+                    exit()  # 프로그램 완전히 종료
                 if not self.handle_guest_action(choice):  # 잘못된 선택 시 프로그램 종료
-                    break
-        self.close()
+                    continue
+
+
+                
 
 if __name__ == "__main__":
     client = ViewClient()
-    client.run()
+    client.connect()
+    client.run_menu()
