@@ -8,9 +8,11 @@ class AsyncUserService:
     async def register_user(self, userid, password):
         """사용자 등록"""
         try:
+            print(f"Attempting to register user: {username}")  # 디버깅 로그
             existing_user = await self.db_connector.execute_query(
                 'SELECT 1 FROM users WHERE userid = ?', (userid,), fetch_one=True
             )
+            print(f"Existing user: {existing_user}")  # 디버깅 로그
             if existing_user:
                 return f"Error: Username '{userid}' already exists"
             
@@ -28,6 +30,7 @@ class AsyncUserService:
     async def login(self, userid, password):
         """로그인"""
         try:
+            print(f"Attempting login with username: {username} and password: {password}")  # 디버깅 로그
             user = await self.db_connector.execute_query(
                 "SELECT userid FROM users WHERE userid = ? AND password = ?",
                 (userid, password),
