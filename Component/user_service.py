@@ -37,7 +37,6 @@ class AsyncUserService:
             if user:
                 # 로그인 성공 로그 기록
                 await log_action(self.db_connector, userid, "Login successful")
-                # return f"Login successful! User ID: {user[1]}"
                 return user[0]
             else:
                 return "로그인 실패"

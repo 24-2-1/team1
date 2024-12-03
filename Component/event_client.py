@@ -39,6 +39,7 @@ class EventClient:
     def register(self):
         """회원가입 요청 처리"""
         while True:
+            print("메뉴창으로 돌아가려면 0번 입력")
             name = input("Enter userid: ")
             password = input("Enter password: ")
             command = f"register {name} {password}"

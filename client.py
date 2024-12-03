@@ -2,6 +2,9 @@ from Component.event_client import EventClient
      
 class ViewClient(EventClient):
     """Component디렉토리 안의 event_client.py를 부모로 상속, 서버로 보낼 모든 기능들은 거기서"""
+    def __init__(self):
+        super().__init__()
+        
     def show_initial_menu(self):
         """초기 메뉴를 화면에 출력하는 함수"""
         print("\n===== 초기 메뉴 =====")
@@ -18,7 +21,6 @@ class ViewClient(EventClient):
         print("3. 알림 확인")  # 알림 확인 선택지
         print("9. 로그아웃")  # 로그아웃 선택지
         print("0. 종료")  # 로그아웃 선택지
-        # 뒤로가기는 로그인 후 메뉴에서는 제외
 
     def handle_guest_action(self, choice):
         """로그인하지 않은 사용자의 선택에 따른 행동 처리 함수"""
@@ -50,11 +52,15 @@ class ViewClient(EventClient):
         else:
             print("올바르지 않은 선택입니다. 다시 시도하세요.")  # 잘못된 선택 처리
             return False
-
+    def loing_menu(self):
+        pass
     def go_back(self):
         """뒤로가기 버튼을 눌렀을 때 이전 메뉴로 돌아가는 함수"""
         print("이전 메뉴로 돌아갑니다.")
-        
+    
+    def logout(self):
+        self.login_user = None
+    
     """수정필요"""
     def run(self): 
         self.connect()
