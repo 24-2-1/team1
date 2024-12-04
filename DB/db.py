@@ -43,7 +43,7 @@ async def initialize_database():
                 cursor.execute('''
                 CREATE TABLE IF NOT EXISTS users (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    username TEXT UNIQUE NOT NULL,
+                    userid TEXT UNIQUE NOT NULL,
                     password TEXT NOT NULL
                 )
                 '''),
@@ -59,8 +59,10 @@ async def initialize_database():
                 cursor.execute('''
                 CREATE TABLE IF NOT EXISTS reservations (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id INTEGER NOT NULL,
                     event_id INTEGER NOT NULL,
+                    seat TEXT NOT NULL,
+                    reserved BOOLEAN DEFAULT 0,
+                    user_id INTEGER NOT NULL,
                     FOREIGN KEY(user_id) REFERENCES users(id),
                     FOREIGN KEY(event_id) REFERENCES events(id)
                 )

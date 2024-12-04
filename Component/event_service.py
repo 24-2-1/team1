@@ -93,6 +93,37 @@ class AsyncEventService:
 
             return f"Reservation canceled for User {user_id} on Event {event_id}"
 
+    async def display_seats(self):
+        """좌석 배열 출력"""
+        seats = await self.db_connector.execute_query(
+            "SELECT seat, reserved FROM reservations ORDER BY seat ASC", fetch_all=True
+        )
+        seat_map = {seat[0]: seat[1] for seat in seats}
+
+        output = "\n좌석 배열 (10x4):\n"
+        for row in range(1, 11):
+            row_str = ""
+            for col in range(1, 5):
+                seat = f"{chr(64+col)}{row}"
+                status = "예약됨" if seat_map.get(seat) else "예약 가능"
+                row_str += f"[{status}] {seat} "
+            output += row_str + "\n"
+        return output
+    
+    async def reserve_seat(self, user_id, seat):
+        """좌석 예약"""
+        seat_status = await self.db_connector.execute_query(
+            "SELECT reserved FROM reservations WHERE seat = ?", params=(seat,), fetch_one=True
+        )
+        if seat_status and seat_status[0] == 1:
+            return f"{seat} 좌석은 이미 예약되었습니다."
+
+        await self.db_connector.execute_query(
+            "INSERT OR REPLACE INTO reservations (seat, reserved) VALUES (?, ?)", params=(seat, 1)
+        )
+        await self.log_action(user_id, f"{seat} 좌석 예약")
+        return f"{seat} 좌석 예약 완료!"
+
     async def get_all_events(self):
         """모든 이벤트 조회"""
         events = await self.db_connector.execute_query(
