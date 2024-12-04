@@ -1,5 +1,5 @@
 from Component.event_client import EventClient
-     
+
 class ViewClient(EventClient):
     """Component디렉토리 안의 event_client.py를 부모로 상속, 서버로 보낼 모든 기능들은 거기서"""
     def __init__(self):
