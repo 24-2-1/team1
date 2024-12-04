@@ -13,7 +13,8 @@ class CommandHandler:
         self.command_map = {
             'register': lambda args: self.user_service.register_user(*args),
             'login': lambda args: self.user_service.login(*args),
-            'reserve': lambda args: self.event_service.reserve_ticket(*map(int, args)),
+            "get_seats": lambda args: self.event_service.display_seats(),  # 좌석 조회
+            'reserve': lambda args: self.event_service.reserve_seat(*args),  # 수정된 부분,
             'cancel': lambda args: self.event_service.cancel_reservation(*map(int, args)),
             'view_events': lambda args: self.event_service.get_all_events(),  # 수정
             'view_logs': lambda args: self.event_service.get_user_logs(int(args[0]))  # 추가된 명령어

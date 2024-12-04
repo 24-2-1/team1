@@ -97,35 +97,21 @@ class EventClient:
         command = f"book_event {event_id}"
         response = self.send_request(command)
         print(f"Server response: {response}")
-        
-"""테스트"""
-if __name__ == "__main__":
-    client = EventClient()
-    client.connect()
+    
+    def seat(self):
+        """좌석 예약 기능"""
+        print("\n===== 좌석 예약 =====")
+        response = self.send_request("get_seats")  # 좌석 배열 요청
+        print(response)  # 좌석 상태 출력
 
-    while True:
-        print("\nAvailable options:")
-        print("1. 회원가입")
-        print("2. 로그인")
-        print("3. 종료하기")
-        print("4. 이벤트 목록")
-        print("5. 알림확인")
-        print("6. 예약하기")
-        
-        choice = input("Enter your choice: ")
+        user_input = input("\n예약할 좌석 번호를 입력하세요 (예: A1, B2). 여러 좌석은 공백으로 구분하세요: ").strip()
+        if not user_input:
+            print("좌석 번호를 입력해주세요.")
+            return
 
-        if choice == "1":
-            client.register()
-        elif choice == "2":
-            client.login()
-        elif choice == "3":
-            break
-        elif choice == "4":
-            client.view_events()
-        elif choice == "5":
-            client.check_notifications()
-        elif choice == "6":
-            client.book_event()
-        else:
-            print("Invalid choice. Please try again.")
-    client.close()
+        seats = user_input.split()
+        for seat in seats:
+            command = f"reserve_seat {self.login_user} {seat}"  # 서버에 좌석 예약 요청
+            response = self.send_request(command)
+            print(response)
+
