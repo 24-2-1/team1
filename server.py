@@ -64,13 +64,13 @@ class CommandHandler:
                 # 일반 명령어의 경우 처리 후 반환
                 return response              
             else:
-                return "client와 event_service 실행 함수가 달라"
+                return f"client와 event_service 실행 함수가 달라"
 
         except TypeError:
             return "TypeError"
         except Exception as e:
             print(f"Unexpected error in handle_command: {e}")
-            return "그냥 에러"
+            return f"그냥 에러"
 
 class SocketServer:
     """소켓 서버 클래스"""

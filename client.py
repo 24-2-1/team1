@@ -118,7 +118,10 @@ class ViewClient(EventClient):
         command = f"reserve_ticket {self.login_user} {event_id}"
         self.send(command)
         response = self.client_socket.recv(1024).decode('utf-8')
-        print(f"Server response: {response}")
+        if not response:
+            print("Error: No response from server.")
+        else:
+            print(f"Server response: {response}")
         
     def cancel_reserve(self):
         """이벤트 취소"""

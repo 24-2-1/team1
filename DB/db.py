@@ -95,7 +95,7 @@ async def initialize_database():
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     event_id INTEGER NOT NULL,
                     seat_number TEXT NOT NULL,
-                    status TEXT NOT NULL,  -- "available" 또는 "reserved",
+                    status TEXT NOT NULL,  -- "예약 가능" 또는 "예약 불가능",
                     FOREIGN KEY(event_id) REFERENCES events(id)
                 )
                 ''')
