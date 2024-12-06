@@ -1,202 +1,185 @@
-import socket
-
+import asyncio
+import json
+from prompt_toolkit import PromptSession
+from prompt_toolkit.patch_stdout import patch_stdout
 
 class EventClient:
+    """서버와의 통신을 담당하는 클래스."""
     def __init__(self, host='127.0.0.1', port=5000):
         self.host = host
         self.port = port
-        self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.reader = None
+        self.writer = None
+        self.login_user = None
+        self.message_callback = None
+        self.lock = asyncio.Lock()
 
-    def connect(self):
-        """서버에 연결"""
+    async def connect(self):
+        """서버 연결"""
         try:
-            self.client_socket.connect((self.host, self.port))
+            self.reader, self.writer = await asyncio.open_connection(self.host, self.port)
             print(f"Connected to server at {self.host}:{self.port}")
+            asyncio.create_task(self.receive_messages())
         except Exception as e:
             print(f"Error connecting to server: {e}")
 
-    def send_request(self, request):
-        """서버로 요청 전송"""
+    async def receive_messages(self):
+        """서버 메시지 수신"""
         try:
-            # request가 리스트인 경우, 이를 문자열로 변환
-            if isinstance(request, list):
-                request = "\n".join(str(item) for item in request)  # 리스트를 문자열로 변환
-
-            # 이제 request는 문자열이므로, encode()를 안전하게 사용할 수 있음
-            self.client_socket.sendall(request.encode())  # 문자열로 변환한 후 encode
-            response = self.client_socket.recv(1024).decode()  # 응답 받기
-            return response
+            while True:
+                data = await self.reader.read(1024)
+                if not data:
+                    print("Connection closed by server.")
+                    break
+                message = json.loads(data.decode().strip())
+                if "type" in message and "data" in message:
+                    # 메시지 처리 (예: 알림과 응답 분리)
+                    if message["type"] == "notification":
+                        print(f"\n[알림] {message['data']}\n> ", end='', flush=True)
+                    else:
+                        # 요청에 대한 응답 처리
+                        if self.message_callback:
+                            await self.message_callback(message["data"])
+                else:
+                    print(f"Invalid message from server: {message}")
         except Exception as e:
-            print(f"Error during communication with server: {e}")
-            return None
-        
-    def close(self):
+            print(f"Error receiving message from server: {e}")
+
+    async def send_request(self, command_type, data):
+        """서버에 JSON 요청 전송"""
+        async with self.lock:
+            try:
+                request_data = json.dumps({"type": command_type, "data": data})
+                self.writer.write(request_data.encode())
+                await self.writer.drain()
+            except Exception as e:
+                print(f"Error during communication with server: {e}")
+                return {"status": "error", "message": str(e)}
+
+
+    async def close(self):
         """서버 연결 종료"""
-        self.client_socket.close()
-        print("Connection closed")
+        if self.writer:
+            self.writer.close()
+            await self.writer.wait_closed()
+            print("Connection closed")
 
-    def register(self):
-        """회원가입 요청 처리"""
-        while True:
-            print("메뉴창으로 돌아가려면 0번 입력")
-            name = input("Enter userid: ")
-            if name == "0":
-                self.run_menu()
-            print("id를 다시 입력하려면 0번 입력")
-            password = input("Enter password: ")
-            if password == "0":
-                self.register()
-            else:
-                command = f"register {name} {password}"
-                response = self.send_request(command)
-                print(f"Server response: {response}")
-
-            if "already exists" in response:
-                print("이미 회원가입하셨습니다.")
-            else:
-                break
-
-    def login(self):
-        """로그인 요청 처리"""
-        print("이전 화면으로 가시려면 0번 입력")
-        while True:
-            name = input("Enter userid: ")
-            if name == "0":
-                self.run_menu()
-            password = input("Enter password: ")
-            command = f"login {name} {password}"
-            response = self.send_request(command)
-            if response == "로그인 실패":
-                print(response)
-            else:
-                self.login_user = response
-                print("로그인 성공")
-                break  # while 문을 종료
-
-    def view_events(self):
-        """이벤트 목록 조회"""
-        command = "view_events"
-        response = self.send_request(command)
-
-        print(f"Available events:\n{response}")  # 서버에서 받은 응답 출력
-        input("메뉴를 보시겠습니까")
-        self.run_menu()
+    def set_message_callback(self, callback):
+        self.message_callback = callback
 
 
-    def check_notifications(self):
-        """알림 확인"""
-        command = "check_notifications"
-        response = self.send_request(command)
-        print(f"Notifications:\n{response}")
-
-    def book_event(self):
-        """이벤트 예약"""
-        event_id = input("Enter event ID to book: ")
-        command = f"book_event {event_id}"
-        response = self.send_request(command)
-        print(f"Server response: {response}")
-    
-    def seat(self):
-        """좌석 예약 기능"""
-        print("\n===== 좌석 예약 =====")
-        response = self.send_request("get_seats")  # 좌석 배열 요청
-        print(response)  # 좌석 상태 출력
-
-        user_input = input("\n예약할 좌석 번호를 입력하세요 (예: A1, B2). 여러 좌석은 공백으로 구분하세요: ").strip()
-        if not user_input:
-            print("좌석 번호를 입력해주세요.")
-            return
-
-        seats = user_input.split()
-        for seat in seats:
-            command = f"reserve_seat {self.login_user} {seat}"  # 서버에 좌석 예약 요청
-            response = self.send_request(command)
-            print(response)
-
-
-class ViewClient(EventClient):
-    """Component디렉토리 안의 event_client.py를 부모로 상속, 서버로 보낼 모든 기능들은 거기서"""
+class ViewClient:
+    """사용자 인터페이스"""
     def __init__(self):
-        super().__init__()
-        
-    def show_initial_menu(self):
-        """초기 메뉴를 화면에 출력하는 함수"""
-        print("\n===== 초기 메뉴 =====")
-        print("1. 회원가입")  # 회원가입 선택지
-        print("2. 로그인")  # 로그인 선택지
-        print("3. 뮤지컬 목록 보기") 
-        print("0. 종료")  # 프로그램 종료 선택지
+        self.client = EventClient()
+        self.client.set_message_callback(self.handle_server_message)
+        self.session = PromptSession()
 
-    def show_logged_in_menu(self):
-        """로그인 후 사용자 메뉴를 화면에 출력하는 함수"""
-        print("\n===== 로그인 후 메뉴 =====")
-        print("1. 뮤지컬 목록 보기")  # 대기자 등록 선택지
-        print("2. 티켓 예약")  # 티켓 예약 선택지
-        print("3. 알림 확인")  # 알림 확인 선택지
-        print("9. 로그아웃")  # 로그아웃 선택지
+    async def handle_server_message(self, message):
+        """서버 메시지 처리"""
+        print(f"\n[알림] {message}\n> ", end='', flush=True)
+
+    async def run_menu(self):
+        """메인 메뉴"""
+        await self.client.connect()
+        with patch_stdout():
+            while True:
+                if self.client.login_user:
+                    self.show_logged_in_menu()
+                    choice = (await self.session.prompt_async("> ")).strip()
+                    if choice == "0":
+                        await self.client.close()
+                        break
+                    await self.handle_user_action(choice)
+                else:
+                    self.show_initial_menu()
+                    choice = (await self.session.prompt_async("> ")).strip()
+                    if choice == "0":
+                        await self.client.close()
+                        break
+                    await self.handle_guest_action(choice)
+
+    def show_initial_menu(self):
+        """초기 메뉴 표시"""
+        print("\n===== 초기 메뉴 =====")
+        print("1. 회원가입")
+        print("2. 로그인")
+        print("3. 이벤트 목록 보기")
         print("0. 종료")
 
-    def handle_guest_action(self, choice):
-        """로그인하지 않은 사용자의 선택에 따른 행동 처리 함수"""
-        actions = {
-            "1": self.register,  # 회원가입 처리
-            "2": self.login,  # 로그인 처리
-            "3": self.view_events, #뮤지컬 목록
-        }
-        return self._handle_action(actions, choice)  # 선택한 액션 처리
-    
-    def handle_user_action(self, choice):
-        """로그인한 사용자의 선택에 따른 행동 처리 함수"""
-        actions = {
-            "1": self.view_events,  # 티켓 예약 처리
-            "2": self.book_event, #se
-            "3": self.check_notifications,  # 알림 확인 처리
-            "9": self.logout,  # 로그아웃 처리
-        }
-        return self._handle_action(actions, choice)  # 선택한 액션 처리
+    def show_logged_in_menu(self):
+        """로그인 후 메뉴 표시"""
+        print("\n===== 로그인 후 메뉴 =====")
+        print("1. 이벤트 목록 보기")
+        print("2. 티켓 예약")
+        print("3. 알림 확인")
+        print("4. 예약 취소")
+        print("9. 로그아웃")
+        print("0. 종료")
 
-
-    def _handle_action(self, actions, choice):
-        """공통된 행동 처리 로직: 유효한 선택인지 확인 후 해당 처리 함수 호출"""
-        action = actions.get(choice)  # 사용자가 선택한 옵션에 맞는 액션을 찾음
-        if action:
-            action()  # 선택한 액션을 실행
-            return True
+    async def handle_guest_action(self, choice):
+        """비로그인 사용자 액션"""
+        if choice == "1":
+            await self.handle_authentication("register")
+        elif choice == "2":
+            await self.handle_authentication("login")
+        elif choice == "3":
+            await self.view_events()
         else:
-            print("올바르지 않은 선택입니다. 다시 시도하세요.")  # 잘못된 선택 처리
-            return False
-    
-    def logout(self):
-        self.login_user = None
-    
-    def run_menu(self):
-        """프로그램 실행 함수: 사용자 선택에 따라 메뉴를 반복 출력하며 처리"""
+            print("잘못된 입력입니다. 다시 시도하세요.")
+
+    async def handle_user_action(self, choice):
+        """로그인 사용자 액션"""
+        if choice == "1":
+            await self.view_events()
+        elif choice == "2":
+            await self.reserve_ticket()
+        elif choice == "3":
+            print("실시간 알림은 자동으로 표시됩니다.")
+        elif choice == "4":
+            await self.cancel_reservation()
+        elif choice == "9":
+            self.logout()
+        else:
+            print("잘못된 입력입니다. 다시 시도하세요.")
+
+    async def handle_authentication(self, mode):
+        """회원가입 및 로그인"""
         while True:
-            if self.login_user:
-                # 로그인된 상태에서 메뉴 출력
-                self.show_logged_in_menu()
-                choice = input("메뉴를 선택하세요: ").strip()
-                if choice == "0":
-                    print("프로그램을 종료합니다.")
-                    self.close()  # 연결 종료
-                    exit()  # 프로그램 완전히 종료
-                if not self.handle_user_action(choice):  # 잘못된 선택 시 다시 시도
-                    continue
-            else:
-                # 로그인되지 않은 상태에서 메뉴 출력
-                self.show_initial_menu()
-                choice = input("메뉴를 선택하세요: ").strip()
-                if choice == "0":
-                    print("프로그램을 종료합니다.")
-                    self.close()  # 연결 종료
-                    exit()  # 프로그램 완전히 종료
-                if not self.handle_guest_action(choice):  # 잘못된 선택 시 프로그램 종료
-                    continue
+            name = (await self.session.prompt_async("Enter userid: ")).strip()
+            if name == "0":
+                return
+            password = (await self.session.prompt_async("Enter password: ")).strip()
+            response = await self.client.send_request(mode, {"userid": name, "password": password})
+            print(response.get("message", "응답 오류"))
+            if response.get("status") == "success":
+                if mode == "login":
+                    self.client.login_user = name
+                break
 
+    async def view_events(self):
+        """이벤트 목록 보기"""
+        response = await self.client.send_request("view_events", {})
+        print(response.get("message", "응답 오류"))
 
-                
+    async def reserve_ticket(self):
+        """티켓 예약"""
+        event_id = await self.session.prompt_async("Enter event ID: ")
+        response = await self.client.send_request("reserve_ticket", {"userid": self.client.login_user, "event_id": event_id})
+        print(response.get("message", "응답 오류"))
+
+    async def cancel_reservation(self):
+        """예약 취소"""
+        event_id = await self.session.prompt_async("Enter event ID to cancel: ")
+        response = await self.client.send_request("cancel", {"userid": self.client.login_user, "event_id": event_id})
+        print(response.get("message", "응답 오류"))
+
+    def logout(self):
+        """로그아웃"""
+        self.client.login_user = None
+        print("로그아웃 되었습니다.")
+
 
 if __name__ == "__main__":
     client = ViewClient()
-    client.connect()
-    client.run_menu()
+    asyncio.run(client.run_menu())

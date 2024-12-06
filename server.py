@@ -1,4 +1,5 @@
 import asyncio
+import json
 from DB.db import initialize_database, AsyncDatabaseConnector
 from Component.user_service import AsyncUserService
 from Component.event_service import AsyncEventService
@@ -11,42 +12,36 @@ class CommandHandler:
 
         # 명령어-처리 함수 매핑
         self.command_map = {
-            'register': lambda args: self.user_service.register_user(*args),
-            'login': lambda args: self.user_service.login(*args),
-            "get_seats": lambda args: self.event_service.display_seats(),  # 좌석 조회
-            'reserve': lambda args: self.event_service.reserve_seat(*args),  # 수정된 부분,
-            'cancel': lambda args: self.event_service.cancel_reservation(*map(int, args)),
-            'view_events': lambda args: self.event_service.get_all_events(),  # 수정
-            'view_logs': lambda args: self.event_service.get_user_logs(int(args[0]))  # 추가된 명령어
+            'register': lambda args: self.user_service.register_user(args.get("userid"), args.get("password")),
+            'login': lambda args: self.user_service.login(args.get("userid"), args.get("password")),
+            'view_events': lambda _: self.event_service.get_all_events(),
+            'reserve_ticket': lambda args: self.event_service.reserve_ticket(args.get("userid"), args.get("event_id")),
+            'cancel': lambda args: self.event_service.cancel_reservation(args.get("userid"), args.get("event_id")),
         }
 
-    async def handle_command(self, data):
+    async def handle_command(self, request):
         """명령어 처리"""
         try:
-            commands = data.strip().split(' ')
-            command = commands[0].lower()
+            command_type = request.get("type")
+            data = request.get("data", {})
 
-            # 명령 처리 로직
-            if command in self.command_map:
-                if command == 'view_events':  # view_events는 인자가 필요 없음
-                    return await self.command_map[command]([])
-                return await self.command_map[command](commands[1:])
+            if command_type in self.command_map:
+                return await self.command_map[command_type](data)
             else:
-                return "Error: Unknown command"
-        except TypeError:
-            return "Error: Invalid arguments"
+                return {"status": "error", "message": "Unknown command"}
         except Exception as e:
-            print(f"Unexpected error in handle_command: {e}")
-            return "Error: Request failed"
+            print(f"Error in handle_command: {e}")
+            return {"status": "error", "message": str(e)}
 
 class SocketServer:
     """소켓 서버 클래스"""
     def __init__(self, host='127.0.0.1', port=5000):
         self.host = host
         self.port = port
+        self.clients = {}
         self.db_connector = AsyncDatabaseConnector()
         self.user_service = AsyncUserService(self.db_connector)
-        self.event_service = AsyncEventService(self.db_connector)
+        self.event_service = AsyncEventService(self.db_connector, self.clients)
         self.command_handler = CommandHandler(self.user_service, self.event_service)
 
     async def handle_client(self, reader, writer):
@@ -56,60 +51,41 @@ class SocketServer:
 
         try:
             while True:
-                try:
-                    data = await reader.read(1024)
-                    if not data:  # 클라이언트 연결 종료
-                        print(f"Connection closed by client: {addr}")
-                        break
+                data = await reader.read(1024)
+                if not data:
+                    print(f"Connection closed by client: {addr}")
+                    break
 
-                    message = data.decode().strip()
-                    print(f"Received: {message} from {addr}")
+                try:
+                    request = json.loads(data.decode())
+                    print(f"Received: {request}")
 
                     # 명령어 처리
-                    response = await self.command_handler.handle_command(message)
-                    writer.write(response.encode())
-                    await writer.drain()
+                    response = await self.command_handler.handle_command(request)
+                except json.JSONDecodeError:
+                    response = {"status": "error", "message": "Invalid JSON format"}
 
-                except Exception as e:
-                    print(f"Error handling request from {addr}: {e}")
-                    writer.write(f"Error: {e}".encode())
-                    await writer.drain()
+                # 응답 전송
+                writer.write(json.dumps(response).encode())
+                await writer.drain()
 
-        except asyncio.CancelledError:
-            # 클라이언트 연결 강제 종료 처리
-            print(f"Client connection cancelled: {addr}")
         except Exception as e:
-            print(f"Unexpected error with client {addr}: {e}")
+            print(f"Error handling client {addr}: {e}")
         finally:
-            # 연결 종료 시 자원 정리
-            print(f"Disconnected from {addr}")
             writer.close()
             await writer.wait_closed()
-
+            print(f"Disconnected from {addr}")
 
     async def start(self):
         """서버 시작"""
-        try:
-            await initialize_database()  # 데이터베이스 초기화
-            print("Database initialized")
+        await initialize_database()
+        print("Database initialized")
 
-            # 서버 시작
-            server = await asyncio.start_server(self.handle_client, self.host, self.port)
-            print(f"Server started on {self.host}:{self.port}")
+        server = await asyncio.start_server(self.handle_client, self.host, self.port)
+        print(f"Server started on {self.host}:{self.port}")
 
-            async with server:
-                await server.serve_forever()
-        except asyncio.CancelledError:
-            # asyncio.CancelledError 처리
-            print("\nServer shutting down gracefully (CancelledError).")
-        except KeyboardInterrupt:
-            # Ctrl+C로 서버 종료 시 처리
-            print("\nServer interrupted by user (KeyboardInterrupt). Shutting down...")
-        except Exception as e:
-            # 서버 초기화 및 실행 중 발생한 예외 처리
-            print(f"Error starting server: {e}")
-        finally:
-            print("Server shutting down. Goodbye!")
+        async with server:
+            await server.serve_forever()
 
 if __name__ == "__main__":
     server = SocketServer()

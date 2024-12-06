@@ -2,7 +2,7 @@ import aiosqlite
 import asyncio
 import os
 class AsyncDatabaseConnector:
-    def __init__(self, db_name="event_system.db"):
+    def __init__(self, db_name="database.db"):
         # server 디렉토리의 절대경로를 기준으로 데이터베이스 파일 경로 설정
         self.db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), db_name)
         self.connection = None
@@ -34,7 +34,7 @@ class AsyncDatabaseConnector:
 async def initialize_database():
     """데이터베이스 초기화"""
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    db_path = os.path.join(base_dir, "event_system.db")
+    db_path = os.path.join(base_dir, "database.db")
     connector = AsyncDatabaseConnector(db_name=db_path)
     async with connector as conn:
         async with conn.cursor() as cursor:
