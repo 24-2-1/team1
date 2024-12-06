@@ -46,48 +46,6 @@ class AsyncEventService:
             await log_action(self.db_connector,user_id, f"Reserved ticket for event {event_id}",event_id)
             
             return f"User {user_id} reserved a ticket for event {event_id}"
-        
-    # async def cancel_reservation(self, user_id, event_id):
-    #     """예약 취소"""
-    #     event_lock = await self.get_event_lock(event_id)
-    #     async with event_lock:
-    #         reservation_exists = await self.db_connector.execute_query(
-    #             "SELECT id FROM reservations WHERE user_id = ? AND event_id = ?", 
-    #             params=(user_id, event_id), 
-    #             fetch_one=True
-    #         )
-    #         if not reservation_exists:
-    #             return f"예약이 없다 {user_id} and event {event_id}"
-
-    #         # 예약 취소 처리
-    #         await self.db_connector.execute_query(
-    #             "DELETE FROM reservations WHERE user_id = ? AND event_id = ?", 
-    #             params=(user_id, event_id)
-    #         )
-    #         await self.db_connector.execute_query(
-    #             "UPDATE events SET available_tickets = available_tickets + 1 WHERE id = ?", 
-    #             params=(event_id,)
-    #         )
-    #         await log_action(self.db_connector,user_id, f"Canceled reservation for event {event_id}",event_id)
-            
-    #         available_tickets = await self.db_connector.execute_query(
-    #             "SELECT available_tickets FROM events WHERE id = ?", 
-    #             params=(event_id,), 
-    #             fetch_one=True
-    #         )
-    #         logging.debug(f"{available_tickets}개수야 이거")
-    #         await asyncio.sleep(2)
-    #         available_tickets = await self.db_connector.execute_query(
-    #             "SELECT available_tickets FROM events WHERE id = ?", 
-    #             params=(event_id,), 
-    #             fetch_one=True
-    #         )
-    #         logging.debug(f"{available_tickets}2초 후 개수야 이거")
-    #         if available_tickets and available_tickets > 0:
-    #             await self.handle_waitlist(event_id)
-    #         # 로그 기록
-
-    #         return f"Reservation canceled for User {user_id} on Event {event_id}"
     
     async def cancel_reservation(self, user_id, event_id):
         """예약 취소"""
