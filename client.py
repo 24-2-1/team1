@@ -102,8 +102,9 @@ class ViewClient(EventClient):
         print(f"Server response: {response}")
         
     def cancel_reserve(self):
+        """이벤트 취소"""
         event_id = input("Enter event ID to cancel_event: ")
-        command = f"cancel_reserve {event_id}"
+        command = f"cancel {self.login_user} {event_id}"
         response = self.send_request(command)
         print(f"Server response: {response}")
     

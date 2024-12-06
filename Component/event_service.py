@@ -37,7 +37,7 @@ class AsyncEventService:
             )
             
             # 로그 기록
-            await self.log_action(self.db_connector,user_id, f"Reserved ticket for event {event_id}")
+            await log_action(self.db_connector,user_id, f"Reserved ticket for event {event_id}",event_id)
             
             return f"User {user_id} reserved a ticket for event {event_id}"
     
@@ -64,7 +64,7 @@ class AsyncEventService:
             )
             
             # 로그 기록
-            await self.log_action(self.db_connector,user_id, f"Canceled reservation for event {event_id}")
+            await log_action(self.db_connector,user_id, f"Canceled reservation for event {event_id}",event_id)
 
             return f"Reservation canceled for User {user_id} on Event {event_id}"
         
@@ -96,7 +96,7 @@ class AsyncEventService:
                     "DELETE FROM waitlist WHERE user_id = ? AND event_id = ?",
                     params=(waitlist_user_id, event_id)
                 )
-                await log_action(self.db_connector, waitlist_user_id, f"Notified about available ticket for event {event_id}")
+                await log_action(self.db_connector, waitlist_user_id, f" {event_id} 예약했음",{event_id})
             except Exception as e:
                 return "Error in handle_waitlist: {e}"
             
@@ -129,9 +129,21 @@ class AsyncEventService:
             return logs_list
         return "No logs found for this user."
     
-async def log_action(db_connector: AsyncDatabaseConnector, user_id, action):
+async def log_action(db_connector: AsyncDatabaseConnector, user_id, action, event_id=None):
     """사용자 활동 로그 기록"""
-    await db_connector.execute_query(
-        "INSERT INTO logs (user_id, action, timestamp) VALUES (?, ?, datetime('now'))", 
-        params=(user_id, action)
-    )
+    try:
+        if event_id:
+            # event_id가 제공된 경우
+            await db_connector.execute_query(
+                "INSERT INTO logs (user_id, action, event_id, timestamp) VALUES (?, ?, ?, datetime('now'))",
+                params=(user_id, action, event_id),
+            )
+        else:
+            # event_id가 제공되지 않은 경우
+            await db_connector.execute_query(
+                "INSERT INTO logs (user_id, action, timestamp) VALUES (?, ?, datetime('now'))",
+                params=(user_id, action),
+            )
+        print(f"Action logged for {user_id}: {action}, Event ID: {event_id if event_id else 'N/A'}")
+    except Exception as e:
+        print(f"Error logging action: {e}")
