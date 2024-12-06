@@ -1,11 +1,13 @@
 import asyncio
 from DB.db import AsyncDatabaseConnector  # AsyncDatabaseConnector 클래스 import
+import logging
 
 class AsyncEventService:
-    def __init__(self, db_connector: AsyncDatabaseConnector):
+    def __init__(self, db_connector: AsyncDatabaseConnector, clients):
         self.db_connector = db_connector
         self.locks = {}
         self.locks_lock = asyncio.Lock()
+        self.clients = clients
 
     async def get_event_lock(self, event_id):
         """이벤트 ID별 비동기 락 반환"""
@@ -24,6 +26,10 @@ class AsyncEventService:
                 fetch_one=True
             )
             if not available_tickets or available_tickets[0] <= 0:
+                await self.db_connector.execute_query(
+                "INSERT INTO waitlist (user_id, event_id) VALUES (?, ?)", 
+                params=(user_id, event_id)
+            )
                 return f"Error: No tickets available for event {event_id}"
 
             # 예약 처리
@@ -40,65 +46,123 @@ class AsyncEventService:
             await log_action(self.db_connector,user_id, f"Reserved ticket for event {event_id}",event_id)
             
             return f"User {user_id} reserved a ticket for event {event_id}"
+        
+    # async def cancel_reservation(self, user_id, event_id):
+    #     """예약 취소"""
+    #     event_lock = await self.get_event_lock(event_id)
+    #     async with event_lock:
+    #         reservation_exists = await self.db_connector.execute_query(
+    #             "SELECT id FROM reservations WHERE user_id = ? AND event_id = ?", 
+    #             params=(user_id, event_id), 
+    #             fetch_one=True
+    #         )
+    #         if not reservation_exists:
+    #             return f"예약이 없다 {user_id} and event {event_id}"
+
+    #         # 예약 취소 처리
+    #         await self.db_connector.execute_query(
+    #             "DELETE FROM reservations WHERE user_id = ? AND event_id = ?", 
+    #             params=(user_id, event_id)
+    #         )
+    #         await self.db_connector.execute_query(
+    #             "UPDATE events SET available_tickets = available_tickets + 1 WHERE id = ?", 
+    #             params=(event_id,)
+    #         )
+    #         await log_action(self.db_connector,user_id, f"Canceled reservation for event {event_id}",event_id)
+            
+    #         available_tickets = await self.db_connector.execute_query(
+    #             "SELECT available_tickets FROM events WHERE id = ?", 
+    #             params=(event_id,), 
+    #             fetch_one=True
+    #         )
+    #         logging.debug(f"{available_tickets}개수야 이거")
+    #         await asyncio.sleep(2)
+    #         available_tickets = await self.db_connector.execute_query(
+    #             "SELECT available_tickets FROM events WHERE id = ?", 
+    #             params=(event_id,), 
+    #             fetch_one=True
+    #         )
+    #         logging.debug(f"{available_tickets}2초 후 개수야 이거")
+    #         if available_tickets and available_tickets > 0:
+    #             await self.handle_waitlist(event_id)
+    #         # 로그 기록
+
+    #         return f"Reservation canceled for User {user_id} on Event {event_id}"
     
     async def cancel_reservation(self, user_id, event_id):
         """예약 취소"""
         event_lock = await self.get_event_lock(event_id)
         async with event_lock:
             reservation_exists = await self.db_connector.execute_query(
-                "SELECT id FROM reservations WHERE user_id = ? AND event_id = ?", 
-                params=(user_id, event_id), 
+                "SELECT id FROM reservations WHERE user_id = ? AND event_id = ?",
+                params=(user_id, event_id),
                 fetch_one=True
             )
             if not reservation_exists:
-                return f"예약이 없다 {user_id} and event {event_id}"
+                return f"No reservation found for user {user_id} on event {event_id}."
 
             # 예약 취소 처리
             await self.db_connector.execute_query(
-                "DELETE FROM reservations WHERE user_id = ? AND event_id = ?", 
+                "DELETE FROM reservations WHERE user_id = ? AND event_id = ?",
                 params=(user_id, event_id)
             )
             await self.db_connector.execute_query(
-                "UPDATE events SET available_tickets = available_tickets + 1 WHERE id = ?", 
+                "UPDATE events SET available_tickets = available_tickets + 1 WHERE id = ?",
                 params=(event_id,)
             )
-            
-            # 로그 기록
-            await log_action(self.db_connector,user_id, f"Canceled reservation for event {event_id}",event_id)
 
-            return f"Reservation canceled for User {user_id} on Event {event_id}"
+            available_tickets = await self.db_connector.execute_query(
+                "SELECT available_tickets FROM events WHERE id = ?",
+                params=(event_id,),
+                fetch_one=True
+            )
+            logging.debug(f"[cancel_reservation] after wait: {available_tickets[0]}")
+
+            if available_tickets and available_tickets[0] > 0:
+                await self.handle_waitlist(event_id)
+
+            return f"Reservation canceled for user {user_id} on event {event_id}"
+
         
     async def handle_waitlist(self, event_id):
-            """대기자 목록 처리"""
-            try:
-                waitlist_user = await self.db_connector.execute_query(
-                    "SELECT user_id FROM waitlist WHERE event_id = ? ORDER BY id ASC LIMIT 1",
-                    params=(event_id,),
-                    fetch_one=True
-                )
-                if not waitlist_user:
-                    return
+        """대기자 목록 처리"""
+        try:
+            # 대기자 조회
+            waitlist_user = await self.db_connector.execute_query(
+                "SELECT user_id FROM waitlist WHERE event_id = ? ORDER BY id ASC LIMIT 1",
+                params=(event_id,),
+                fetch_one=True
+            )
+            if not waitlist_user:
+                print(f"No waitlist user found for event {event_id}.")
+                return  # 대기자가 없으면 종료
 
-                waitlist_user_id = waitlist_user[0]
+            waitlist_user_id = waitlist_user[0]
+            print(f"Processing waitlist user {waitlist_user_id} for event {event_id}.")
 
-                if waitlist_user_id in self.clients:
-                    reader, writer = self.clients[waitlist_user_id]
-                    message = f"Ticket available for Event {event_id}."
-                    try:
-                        writer.write(message.encode())
-                        await writer.drain()
-                    except Exception as e:
-                        del self.clients[waitlist_user_id]
-                        writer.close()
-                        await writer.wait_closed()
+            # 클라이언트 연결 상태 확인
+            if waitlist_user_id in self.clients:
+                target_writer = self.clients[waitlist_user_id]
+                message = f"티켓이 생겼어 {event_id}."
+                try:
+                    target_writer.write(message.encode('utf-8'))
+                    await target_writer.drain()
+                except Exception as e:
+                    return f"handle 실패"
 
-                await self.db_connector.execute_query(
-                    "DELETE FROM waitlist WHERE user_id = ? AND event_id = ?",
-                    params=(waitlist_user_id, event_id)
-                )
-                await log_action(self.db_connector, waitlist_user_id, f" {event_id} 예약했음",{event_id})
-            except Exception as e:
-                return "Error in handle_waitlist: {e}"
+            # 대기자 목록에서 삭제
+            await self.db_connector.execute_query(
+                "DELETE FROM waitlist WHERE user_id = ? AND event_id = ?",
+                params=(waitlist_user_id, event_id)
+            )
+            print(f"Removed waitlist user {waitlist_user_id} for event {event_id}.")
+
+            # 로그 기록
+            await log_action(self.db_connector, waitlist_user_id, f"{event_id} 예약했음", event_id)
+        except Exception as e:
+            print(f"Error in handle_waitlist: {e}")
+            raise  # 디버깅을 위해 예외 재발생
+
             
     async def get_all_events(self):
         """모든 이벤트 조회"""

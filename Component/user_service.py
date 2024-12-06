@@ -41,7 +41,7 @@ class AsyncUserService:
                 return "로그인 실패"
         except Exception as e:
             print(f"Unexpected error during login: {e}")
-            return "Error: Login failed"
+            return "로그인 실패"
     
 
 

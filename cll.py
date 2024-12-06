@@ -1,5 +1,4 @@
 import socket
-import threading
 from prompt_toolkit import PromptSession
 from prompt_toolkit.patch_stdout import patch_stdout
 
@@ -21,38 +20,28 @@ class EventClient:
         except Exception as e:
             print(f"Error connecting to server: {e}")
 
-    def send(self, data):
+    def send_request(self, request):
         """서버로 요청 전송"""
         try:
-            self.client_socket.sendall(data.encode('utf-8')) 
+            # request가 리스트인 경우, 이를 문자열로 변환
+            if isinstance(request, list):
+                request = "\n".join(str(item) for item in request)  # 리스트를 문자열로 변환
+
+            # 이제 request는 문자열이므로, encode()를 안전하게 사용할 수 있음
+            self.client_socket.sendall(request.encode())  # 문자열로 변환한 후 encode
+            response = self.client_socket.recv(1024).decode()  # 응답 받기
+            return response
         except Exception as e:
-            print(f"메시지 전송 중 오류 발생: {e}")
-    
-    def receive(self):
-        """서버로부터 메시지 수신"""
-        while self.running:
-            try:
-                data = self.client_socket.recv(1024).decode('utf-8')
-                if not data:
-                    print("\n서버 연결이 끊어졌습니다.")
-                    break
-                print(f"\n[서버 메시지]: {data}")
-            except Exception as e:
-                print(f"메시지 수신 중 오류 발생: {e}")
-                break
-            
-    def start_receive_thread(self):
-        """메시지 수신용 쓰레드 시작"""
-        recv_thread = threading.Thread(target=self.receive, daemon=True)
-        recv_thread.start()
+            print(f"Error during communication with server: {e}")
+            return None
         
     def close(self):
         """서버 연결 종료"""
-        self.running = False
         self.client_socket.close()
-        print("서버 연결 종료.")
+        print("Connection closed")
   
 class ViewClient(EventClient):
+    """Component디렉토리 안의 event_client.py를 부모로 상속, 서버로 보낼 모든 기능들은 거기서"""
     def __init__(self):
         super().__init__()
     
@@ -60,18 +49,17 @@ class ViewClient(EventClient):
         """회원가입 요청 처리"""
         while True:
             print("메뉴창으로 돌아가려면 0번 입력")
-            name = self.session.prompt("아이디 입력: ").strip()
+            name = input("Enter userid: ")
             if name == "0":
                 self.run_menu()
             print("id를 다시 입력하려면 0번 입력")
-            password = self.session.prompt("비밀번호 입력: ").strip()
+            password = input("Enter password: ")
             if password == "0":
                 self.register()
             else:
                 command = f"register {name} {password}"
-                self.send(command)
-                response = self.client_socket.recv(1024).decode('utf-8')
-                print(f"{response} 회원가입 성공")
+                response = self.send_request(command)
+                print(f"Server response: {response}")
 
             if "already exists" in response:
                 print("이미 회원가입하셨습니다.")
@@ -82,50 +70,46 @@ class ViewClient(EventClient):
         """로그인 요청 처리"""
         print("이전 화면으로 가시려면 0번 입력")
         while True:
-            userid = self.session.prompt("아이디 입력: ").strip()
-            if userid == "0":
+            name = input("Enter userid: ")
+            if name == "0":
                 self.run_menu()
-            password = self.session.prompt("비밀번호 입력: ").strip()
-            command = f"login {userid} {password}"
-            self.send(command)
-            response = self.client_socket.recv(1024).decode('utf-8')
+            password = input("Enter password: ")
+            command = f"login {name} {password}"
+            response = self.send_request(command)
             if response == "로그인 실패":
                 print(response)
             else:
                 self.login_user = response
-                self.start_receive_thread()  # 로그인 후 메시지 수신 쓰레드 시작
                 print("로그인 성공")
                 break  # while 문을 종료
 
     def view_events(self):
         """이벤트 목록 조회"""
         command = "view_events"
-        response = self.send(command)
+        response = self.send_request(command)
 
         print(f"Available events:\n{response}")  # 서버에서 받은 응답 출력
-        self.session.prompt("메뉴를 보시겠습니까")
+        input("메뉴를 보시겠습니까")
         self.run_menu()
 
     def check_notifications(self):
         """알림 확인"""
         command = "check_notifications"
-        response = self.send(command)
+        response = self.send_request(command)
         print(f"Notifications:\n{response}")
 
     def reserve_ticket(self):
         """이벤트 예약"""
-        event_id = self.session.prompt("Enter event ID to reserve: ")
+        event_id = input("Enter event ID to reserve: ")
         command = f"reserve_ticket {self.login_user} {event_id}"
-        self.send(command)
-        response = self.client_socket.recv(1024).decode('utf-8')
+        response = self.send_request(command)
         print(f"Server response: {response}")
         
     def cancel_reserve(self):
         """이벤트 취소"""
-        event_id = self.session.prompt("Enter event ID to cancel_event: ")
+        event_id = input("Enter event ID to cancel_event: ")
         command = f"cancel {self.login_user} {event_id}"
-        self.send(command)
-        response = self.client_socket.recv(1024).decode('utf-8')
+        response = self.send_request(command)
         print(f"Server response: {response}")
     
     def show_initial_menu(self):
@@ -186,7 +170,7 @@ class ViewClient(EventClient):
             if self.login_user:
                 # 로그인된 상태에서 메뉴 출력
                 self.show_logged_in_menu()
-                choice = self.session.prompt("메뉴를 선택하세요: ").strip()
+                choice = input("메뉴를 선택하세요: ").strip()
                 if choice == "0":
                     print("프로그램을 종료합니다.")
                     self.close()  # 연결 종료
@@ -196,7 +180,7 @@ class ViewClient(EventClient):
             else:
                 # 로그인되지 않은 상태에서 메뉴 출력
                 self.show_initial_menu()
-                choice = self.session.prompt("메뉴를 선택하세요: ").strip()
+                choice = input("메뉴를 선택하세요: ").strip()
                 if choice == "0":
                     print("프로그램을 종료합니다.")
                     self.close()  # 연결 종료

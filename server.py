@@ -2,7 +2,33 @@ import asyncio
 from DB.db import initialize_database, AsyncDatabaseConnector
 from Component.user_service import AsyncUserService
 from Component.event_service import AsyncEventService
+import logging
 
+# 로그 설정
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("server.log"),
+        logging.StreamHandler()
+    ]
+)
+class SpecificFunctionFilter(logging.Filter):
+    """특정 함수의 로그만 필터링"""
+    def __init__(self, functions):
+        super().__init__()
+        self.functions = functions
+
+    def filter(self, record):
+        # 로그 메시지에 특정 함수 이름이 포함되어 있는지 확인
+        return any(func in record.msg for func in self.functions)
+# 필터 추가
+function_filter = SpecificFunctionFilter(functions=["[handle_waitlist]", "[cancel_reservation]"])
+for handler in logging.getLogger().handlers:
+    handler.addFilter(function_filter)
+
+
+clients = {}
 class CommandHandler:
     """명령어 처리 클래스"""
     def __init__(self, user_service, event_service):
@@ -19,24 +45,32 @@ class CommandHandler:
             'cancel': lambda args: self.event_service.cancel_reservation(*args)
         }
 
-    async def handle_command(self, data):
+    async def handle_command(self, data,writer):
         """명령어 처리"""
         try:
             commands = data.strip().split(' ')
             command = commands[0].lower()
 
             if command in self.command_map:
-                # view_events는 인자가 필요없으므로 빈 리스트를 넘김
-                return await self.command_map[command](commands[1:] if command != 'view_events' else [])
-            
+                if command == 'view_events':
+                    # view_events는 인자가 필요 없으므로 빈 리스트를 넘깁니다.
+                    return await self.command_map[command]([])             
+                # 모든 다른 명령어를 처리
+                response = await self.command_map[command](commands[1:])
+                if command == "login":
+                    if response != "로그인 실패":
+                        clients[commands[1]] = writer  # 로그인 성공 시 clients에 추가
+                    return response
+                # 일반 명령어의 경우 처리 후 반환
+                return response              
             else:
-                return "Error: Unknown command"
+                return "client와 event_service 실행 함수가 달라"
 
         except TypeError:
-            return "Error: Invalid arguments"
+            return "TypeError"
         except Exception as e:
             print(f"Unexpected error in handle_command: {e}")
-            return "Error: Request failed"
+            return "그냥 에러"
 
 class SocketServer:
     """소켓 서버 클래스"""
@@ -45,12 +79,13 @@ class SocketServer:
         self.port = port
         self.db_connector = AsyncDatabaseConnector()
         self.user_service = AsyncUserService(self.db_connector)
-        self.event_service = AsyncEventService(self.db_connector)
+        self.event_service = AsyncEventService(self.db_connector,clients)
         self.command_handler = CommandHandler(self.user_service, self.event_service)
 
     async def handle_client(self, reader, writer):
         """클라이언트 요청 처리"""
         addr = writer.get_extra_info('peername')
+        current_user = None
         print(f"Connected to {addr}")
 
         try:
@@ -61,17 +96,17 @@ class SocketServer:
                         print(f"Connection closed by client: {addr}")
                         break
 
-                    message = data.decode().strip()
+                    message = data.decode('utf-8').strip()
                     print(f"Received: {message} from {addr}")
 
                     # 명령어 처리
-                    response = await self.command_handler.handle_command(message)
-                    writer.write(response.encode())
+                    response = await self.command_handler.handle_command(message,writer)
+                    writer.write(response.encode('utf-8'))
                     await writer.drain()
 
                 except Exception as e:
                     print(f"Error handling request from {addr}: {e}")
-                    writer.write(f"Error: {e}".encode())
+                    writer.write(f"Error: {e}".encode('utf-8'))
                     await writer.drain()
 
         except asyncio.CancelledError:
