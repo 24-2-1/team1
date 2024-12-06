@@ -37,7 +37,7 @@ class AsyncEventService:
             )
             
             # 로그 기록
-            await self.log_action(user_id, f"Reserved ticket for event {event_id}")
+            await self.log_action(self.db_connector,user_id, f"Reserved ticket for event {event_id}")
             
             return f"User {user_id} reserved a ticket for event {event_id}"
     
@@ -51,7 +51,7 @@ class AsyncEventService:
                 fetch_one=True
             )
             if not reservation_exists:
-                return f"Error: Reservation does not exist for user {user_id} and event {event_id}"
+                return f"예약이 없다 {user_id} and event {event_id}"
 
             # 예약 취소 처리
             await self.db_connector.execute_query(
@@ -64,10 +64,42 @@ class AsyncEventService:
             )
             
             # 로그 기록
-            await self.log_action(user_id, f"Canceled reservation for event {event_id}")
+            await self.log_action(self.db_connector,user_id, f"Canceled reservation for event {event_id}")
 
             return f"Reservation canceled for User {user_id} on Event {event_id}"
+        
+    async def handle_waitlist(self, event_id):
+            """대기자 목록 처리"""
+            try:
+                waitlist_user = await self.db_connector.execute_query(
+                    "SELECT user_id FROM waitlist WHERE event_id = ? ORDER BY id ASC LIMIT 1",
+                    params=(event_id,),
+                    fetch_one=True
+                )
+                if not waitlist_user:
+                    return
 
+                waitlist_user_id = waitlist_user[0]
+
+                if waitlist_user_id in self.clients:
+                    reader, writer = self.clients[waitlist_user_id]
+                    message = f"Ticket available for Event {event_id}."
+                    try:
+                        writer.write(message.encode())
+                        await writer.drain()
+                    except Exception as e:
+                        del self.clients[waitlist_user_id]
+                        writer.close()
+                        await writer.wait_closed()
+
+                await self.db_connector.execute_query(
+                    "DELETE FROM waitlist WHERE user_id = ? AND event_id = ?",
+                    params=(waitlist_user_id, event_id)
+                )
+                await log_action(self.db_connector, waitlist_user_id, f"Notified about available ticket for event {event_id}")
+            except Exception as e:
+                return "Error in handle_waitlist: {e}"
+            
     async def get_all_events(self):
         """모든 이벤트 조회"""
         events = await self.db_connector.execute_query(

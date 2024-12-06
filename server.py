@@ -13,10 +13,10 @@ class CommandHandler:
         self.command_map = {
             'register': lambda args: self.user_service.register_user(*args),
             'login': lambda args: self.user_service.login(*args),
-            'reserve': lambda args: self.event_service.reserve_ticket(*map(int, args)),
-            'cancel': lambda args: self.event_service.cancel_reservation(*map(int, args)),
             'view_events': lambda args: self.event_service.get_all_events(),  # 수정
-            'view_logs': lambda args: self.event_service.get_user_logs(int(args[0]))  # 추가된 명령어
+            'view_logs': lambda args: self.event_service.get_user_logs(*args),
+            'reserve_ticket': lambda args: self.event_service.reserve_ticket(*args),
+            'cancel': lambda args: self.event_service.cancel_reservation(*args)
         }
 
     async def handle_command(self, data):
@@ -26,7 +26,9 @@ class CommandHandler:
             command = commands[0].lower()
 
             if command in self.command_map:
-                return await self.command_map[command](commands[1:])
+                # view_events는 인자가 필요없으므로 빈 리스트를 넘김
+                return await self.command_map[command](commands[1:] if command != 'view_events' else [])
+            
             else:
                 return "Error: Unknown command"
 
