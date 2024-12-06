@@ -67,6 +67,7 @@ async def initialize_database():
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER NOT NULL,
                     event_id INTEGER NOT NULL,
+                    seat_number TEXT,
                     FOREIGN KEY(user_id) REFERENCES users(id),
                     FOREIGN KEY(event_id) REFERENCES events(id)
                 )
@@ -87,6 +88,15 @@ async def initialize_database():
                     user_id INTEGER,
                     event_id INTEGER,
                     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+                '''),
+                cursor.execute('''
+                CREATE TABLE IF NOT EXISTS seats (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_id INTEGER NOT NULL,
+                    seat_number TEXT NOT NULL,
+                    status TEXT NOT NULL,  -- "available" 또는 "reserved",
+                    FOREIGN KEY(event_id) REFERENCES events(id)
                 )
                 ''')
             ]
