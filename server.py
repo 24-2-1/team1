@@ -40,8 +40,8 @@ class CommandHandler:
             'register': lambda args: self.user_service.register_user(*args),
             'login': lambda args: self.user_service.login(*args),
             'logout': lambda args: self.user_service.logout(*args),
-            'view_events': lambda args: self.event_service.get_all_events(),  # 수정
-            'view_logs': lambda args: self.event_service.get_user_logs(*args),
+            'view_events': lambda args: self.event_service.get_all_events(*args),  # 수정
+            'check_notifications': lambda args: self.event_service.get_user_logs(*args), # 알람확인
             'reserve_ticket': lambda args: self.event_service.reserve_ticket(*args),
             'cancel': lambda args: self.event_service.cancel_reservation(*args),
             'view_seat': lambda args: self.event_service.get_seat_availability(args[0])  # 좌석 조회 추가

@@ -17,21 +17,6 @@ class manage(AsyncDatabaseConnector):
         except Exception as e:
             print(f"Error while dropping tables: {e}")
 
-    async def all_delete(self):
-        """모든 테이블의 데이터 삭제"""
-        try:
-            tables = await self.execute_query(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';",
-                fetch_all=True
-            )
-            for table in tables:
-                table_name = table[0]
-                await self.execute_query(f"DELETE FROM {table_name}")
-                print(f"테이블 {table_name}의 모든 데이터가 삭제되었습니다.")
-            print("모든 데이터가 삭제되었습니다.")
-        except Exception as e:
-            print(f"Error while deleting all data: {e}")
-
     async def drop_table(self, table_name):
         """특정 테이블 삭제"""
         try:
@@ -51,53 +36,84 @@ class manage(AsyncDatabaseConnector):
 
     async def create_event(self, name, description, date, available_tickets):
         """이벤트 생성"""
-        await self.execute_query(
-            'INSERT INTO events (name, description, date, available_tickets) VALUES (?, ?, ?, ?)',
-            (name, description, date, available_tickets)
-        )
-        print(f"이벤트 '{name}'이 생성되었습니다.")
+        try:
+            # 이미 같은 이름의 이벤트가 존재하는지 확인
+            existing_event = await self.execute_query(
+                "SELECT name FROM events WHERE name = ?",
+                (name,),
+                fetch_one=True
+            )
+            
+            if existing_event:
+                print(f"이벤트 '{name}'은 이미 존재합니다.")  # 중복 이벤트가 있으면 생성하지 않음
+                return
+            
+            # 이벤트가 존재하지 않으면 새로운 이벤트 생성
+            await self.execute_query(
+                'INSERT INTO events (name, description, date, available_tickets) VALUES (?, ?, ?, ?)',
+                (name, description, date, available_tickets)
+            )
+            print(f"이벤트 '{name}'이 생성되었습니다.")
+            
+        except Exception as e:
+            print(f"Error while creating event '{name}': {e}")
         
     async def update_event(self, event_id, name=None, description=None, date=None, available_tickets=None):
         """이벤트 내용 수정"""
-        fields = []
-        params = []
+        try:
+            # 수정할 이벤트가 존재하는지 확인
+            existing_event = await self.execute_query(
+                "SELECT id FROM events WHERE id = ?",
+                (event_id,),
+                fetch_one=True
+            )
+            
+            if not existing_event:
+                print(f"이벤트 ID {event_id}는 존재하지 않습니다.")  # 이벤트가 존재하지 않으면 수정 불가
+                return
+            
+            fields = []
+            params = []
+            
+            if name:
+                fields.append("name = ?")
+                params.append(name)
+            if description:
+                fields.append("description = ?")
+                params.append(description)
+            if date:
+                fields.append("date = ?")
+                params.append(date)
+            if available_tickets is not None:
+                fields.append("available_tickets = ?")
+                params.append(available_tickets)
 
-        if name:
-            fields.append("name = ?")
-            params.append(name)
-        if description:
-            fields.append("description = ?")
-            params.append(description)
-        if date:
-            fields.append("date = ?")
-            params.append(date)
-        if available_tickets is not None:
-            fields.append("available_tickets = ?")
-            params.append(available_tickets)
+            if not fields:
+                raise ValueError("수정할 내용이 제공되지 않았습니다.")
 
-        if not fields:
-            raise ValueError("수정할 내용이 제공되지 않았습니다.")
-
-        # Update query 구성
-        params.append(event_id)
-        query = f"UPDATE events SET {', '.join(fields)} WHERE id = ?"
-        await self.execute_query(query, params)
-        print(f"이벤트 ID {event_id}가 성공적으로 수정되었습니다.")
+            # Update query 구성
+            params.append(event_id)
+            query = f"UPDATE events SET {', '.join(fields)} WHERE id = ?"
+            await self.execute_query(query, params)
+            print(f"이벤트 ID {event_id}가 성공적으로 수정되었습니다.")
+            
+        except Exception as e:
+            print(f"Error while updating event '{event_id}': {e}")
         
     async def get_event_reservations(self, event_id):
         """특정 이벤트의 예약자 목록 조회"""
         query = '''
-        SELECT users.id, users.username
+        SELECT users.userid
         FROM reservations
-        JOIN users ON reservations.user_id = users.id
+        JOIN users ON reservations.user_id = users.userid
         WHERE reservations.event_id = ?
         '''
         reservations = await self.execute_query(query, (event_id,), fetch_all=True)
 
         if reservations:
             print(f"이벤트 ID {event_id}의 예약자 목록:")
-            for user_id, username in reservations:
-                print(f"- 사용자 ID: {user_id}, 사용자명: {username}")
+            for user_id in reservations:
+                print(f"- 사용자 ID: {user_id}") # (사용자ID:1,)
         else:
             print(f"이벤트 ID {event_id}에 대한 예약자가 없습니다.")
 
@@ -165,8 +181,6 @@ async def first_data():
                         params=(event_id, seat, '예약 가능')  # 기본 상태는 '예약가능'로 설정
                     )
             print("초기 이벤트 데이터가 성공적으로 삽입되었습니다.")
-        else:
-            print("이벤트 데이터가 이미 존재합니다.")
 
 
 
@@ -180,12 +194,11 @@ if __name__ == "__main__":
             await initialize_database()
             await first_data()
             print("0. 종료하기")
-            print("1. 전체 테이블 삭제")
-            print("2. 전체 테이블의 데이터 삭제")
-            print("3. 특정 테이블 삭제")
-            print("4. 이벤트 생성")
-            print("5. 이벤트 내용 수정")
-            print("6. 이벤트 예약자 목록 조회")
+            print("1. 모든 테이블 초기화")
+            print("2. 특정 테이블의 데이터 초기화")
+            print("3. 새로운 이벤트 생성")
+            print("4. 이벤트 내용 수정")
+            print("5. 이벤트 예약자 목록 조회")
 
             choice = input("Enter your choice: ")
 
@@ -194,15 +207,13 @@ if __name__ == "__main__":
             elif choice == "1":
                 await system.drop_all_tables()
             elif choice == "2":
-                await system.all_delete()
-            elif choice == "3":
                 table_name = input("삭제할 테이블 이름: ")
                 await system.drop_table(table_name)
-            elif choice == "4":
+            elif choice == "3":
                 await system.create_event_with_input()
-            elif choice == "5":
+            elif choice == "4":
                 await system.update_event_with_input()
-            elif choice == "6":
+            elif choice == "5":
                 event_id = int(input("예약자 목록을 확인할 이벤트 ID: "))
                 await system.get_event_reservations(event_id)
             else:

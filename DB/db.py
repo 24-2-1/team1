@@ -67,6 +67,7 @@ async def initialize_database():
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER NOT NULL,
                     event_id INTEGER NOT NULL,
+                    event_name TEXT NOT NULL,
                     seat_number TEXT,
                     FOREIGN KEY(user_id) REFERENCES users(id),
                     FOREIGN KEY(event_id) REFERENCES events(id)
@@ -77,6 +78,7 @@ async def initialize_database():
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER NOT NULL,
                     event_id INTEGER NOT NULL,
+                    event_name TEXT,
                     FOREIGN KEY(user_id) REFERENCES users(id),
                     FOREIGN KEY(event_id) REFERENCES events(id)
                 )

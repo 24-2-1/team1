@@ -126,17 +126,20 @@ class ViewClient(EventClient):
         response = self.client_socket.recv(1024).decode('utf-8')
 
         print(response)  # 서버에서 받은 응답 출력
-        self.session.prompt("메뉴를 보시겠습니까")
-        self.run_menu()
-
+        self.session.prompt("메뉴로 돌아가려면 [Enter]")
+        
     def check_notifications(self):
         """알림 확인"""
-        command = "check_notifications"
-        response = self.send(command)
+        # 로그인한 사용자의 ID를 기반으로 알림 요청
+        command = f"check_notifications {self.login_user}"
+        self.send(command)
+        
+        # 서버에서 받은 응답 처리
+        response = self.client_socket.recv(1024).decode('utf-8')
         print(f"Notifications:\n{response}")
-
+        
     def reserve_ticket(self):
-        """이벤트 예약"""
+        """티켓 예약"""
         event_id = self.session.prompt("Enter event ID to reserve: ")
         command = f"view_seat {event_id}"
         self.send(command)

@@ -19,7 +19,7 @@ class AsyncUserService:
             )
             
             # 사용자 등록 로그 기록
-            await log_action(self.db_connector,userid, "User registered successfully")
+            await log_action(self.db_connector,userid, "회원가입 성공")
             return f"User '{userid}' registered successfully"
         except Exception as e:
             print(f"Unexpected error during registration: {e}")

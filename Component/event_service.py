@@ -23,33 +23,41 @@ class AsyncEventService:
             # 좌석 번호가 입력되지 않으면 좌석을 예약할 수 없다.
             if not seat_number:
                 return f"좌석을 선택 안했어 다시 해"
-            
-            available_tickets = await self.db_connector.execute_query(
-                "SELECT available_tickets FROM events WHERE id = ?", 
+            logging.debug(f"[cancel_reservation] 티켓 예약 처음: {event_id}")
+            available_tickets_info = await self.db_connector.execute_query(
+                "SELECT name,available_tickets FROM events WHERE id = ?", 
                 params=(event_id,), 
                 fetch_one=True
             )
-            if not available_tickets or available_tickets[0] <= 0:
+            #event에서 잘 가져왔는지 확인
+            if available_tickets_info:
+                event_name, available_tickets = available_tickets_info
+            else:    
+                return f"티켓 예약중인데 event에서 {event_id}를 찾을 수가 없어"
+            logging.debug(f"[cancel_reservation] 티켓 예약 처음: {event_name}")
+            if not available_tickets or available_tickets <= 0:
                 await self.db_connector.execute_query(
-                "INSERT INTO waitlist (user_id, event_id) VALUES (?, ?)", 
-                params=(user_id, event_id)
+                "INSERT INTO waitlist (user_id, event_id, event_name) VALUES (?, ?, ?)", 
+                params=(user_id, event_id, event_name)
             )
                 return f" {event_id} 대기자로 갔어"
-
+            logging.debug(f"[cancel_reservation] 티켓개수 확인 뒤: {user_id}")
             seat_exists = await self.db_connector.execute_query(
                 "SELECT status FROM seats WHERE event_id = ? AND seat_number = ?",
                 params=(event_id, seat_number),
                 fetch_one=True
             )
             logging.debug(f"[cancel_reservation] 빈좌석확인: {seat_exists}")
-
-            if seat_exists[0] == '예약 불가능':
+            
+            if not seat_exists:
+                return f"좌석을 찾을 수 없습니다."
+            elif seat_exists[0] == '예약 불가능':
                 return f"{seat_number} 자리는 예약돼있어"
 
             # 예약 처리
             await self.db_connector.execute_query( # 예약
-                "INSERT INTO reservations (user_id, event_id,seat_number) VALUES (?, ?, ?)", 
-                params=(user_id, event_id, seat_number)
+                "INSERT INTO reservations (user_id, event_id,event_name,seat_number) VALUES (?, ?, ?, ?)", 
+                params=(user_id, event_id, event_name, seat_number)
             )
             #좌석 예약 불가능 변경
             await self.db_connector.execute_query( 
@@ -63,7 +71,8 @@ class AsyncEventService:
             
             # 로그 기록
             try:
-                await log_action(self.db_connector, user_id, f"티켓 예약 성공 {event_id}", event_id)
+                await log_action(self.db_connector, user_id, f"{event_name} 티켓 예약 성공", event_id)
+                return f"티켓 예약 성공"
             except Exception as e:
                 return f"티켓 예약 최고 에러"
         
@@ -84,6 +93,12 @@ class AsyncEventService:
                 "UPDATE seats SET status = '예약 가능' WHERE event_id = ? AND seat_number = ?",
                 params=(event_id, seat)
             )
+            #event_name 조회
+            event_name = await self.db_connector.execute_query(
+                "SELECT name FROM events WHERE id = ?", 
+                params=(event_id,), 
+                fetch_one=True
+            )
             # 예약 취소 처리
             await self.db_connector.execute_query(
                 "DELETE FROM reservations WHERE user_id = ? AND event_id = ?",
@@ -99,6 +114,7 @@ class AsyncEventService:
                 params=(event_id,),
                 fetch_one=True
             )
+            await log_action(self.db_connector, user_id, f"{event_name} 예약 취소 성공", event_id)
             logging.debug(f"[cancel_reservation] after wait: {available_tickets[0]}")
 
             if available_tickets and available_tickets[0] > 0:
@@ -137,8 +153,8 @@ class AsyncEventService:
             logging.debug(f"[cancel_reservation] 대기자: {waitlist_user_id}")
             #대기자를 예약자에 추가
             await self.db_connector.execute_query( 
-                "INSERT INTO reservations (user_id, event_id,seat_number) VALUES (?, ?, ?)", 
-                params=(waitlist_user_id, event_id, seat_number)
+                "INSERT INTO reservations (user_id, event_id,event_name,seat_number) VALUES (?, ?, ?, ?)", 
+                params=(waitlist_user_id, event_id, event_name, seat_number)
             )
             #현재 티켓 개수 다시 줄이기
             await self.db_connector.execute_query( 
@@ -163,7 +179,7 @@ class AsyncEventService:
             )
 
             # 로그 기록
-            await log_action(self.db_connector, waitlist_user_id, f"{event_id} 예약했음", event_id)
+            await log_action(self.db_connector, waitlist_user_id, f"{event_name} 대기자에서 자동 예약", event_id)
         except Exception as e:
             print(f"Error in handle_waitlist: {e}")
             raise  # 디버깅을 위해 예외 재발생
@@ -228,15 +244,15 @@ class AsyncEventService:
         """사용자의 로그 기록 조회"""
         logs = await self.db_connector.execute_query(
             "SELECT action, timestamp FROM logs WHERE user_id = ? ORDER BY timestamp DESC", 
-            params=(user_id,), 
+            params=(user_id,),
             fetch_all=True
         )
         if logs:
             logs_list = "\n".join(
-                f"Action: {log[0]}, Timestamp: {log[1]}" for log in logs
+                f"User ID: {user_id}, Action: {log[0]}, Timestamp: {log[1]}" for log in logs
             )
             return logs_list
-        return "No logs found for this user."
+        return "No logs found for user ID {user_id}."
     
 async def log_action(db_connector: AsyncDatabaseConnector, user_id, action, event_id=None):
     """사용자 활동 로그 기록"""
@@ -253,6 +269,5 @@ async def log_action(db_connector: AsyncDatabaseConnector, user_id, action, even
                 "INSERT INTO logs (user_id, action, timestamp) VALUES (?, ?, datetime('now'))",
                 params=(user_id, action),
             )
-        print(f"Action logged for {user_id}: {action}, Event ID: {event_id if event_id else 'N/A'}")
     except Exception as e:
         print(f"Error logging action: {e}")
