@@ -43,7 +43,8 @@ class CommandHandler:
             'view_events': lambda args: self.event_service.get_all_events(),  # 수정
             'view_logs': lambda args: self.event_service.get_user_logs(*args),
             'reserve_ticket': lambda args: self.event_service.reserve_ticket(*args),
-            'cancel': lambda args: self.event_service.cancel_reservation(*args)
+            'cancel': lambda args: self.event_service.cancel_reservation(*args),
+            'view_seat': lambda args: self.event_service.get_seat_availability(args[0])  # 좌석 조회 추가
         }
 
     async def handle_command(self, data,writer):
@@ -62,12 +63,6 @@ class CommandHandler:
                     if response != "로그인 실패":
                         clients[commands[1]] = writer  # 로그인 성공 시 clients에 추가
                     return response
-                # elif command == "logout":
-                #         user_id = commands[1]
-                #         if user_id in clients:
-                #             del clients[user_id]
-                #         return f"{user_id}님이 로그아웃 하셨습니다."
-                # 일반 명령어의 경우 처리 후 반환
                 return response              
             else:
                 return f"client와 event_service 실행 함수가 달라"

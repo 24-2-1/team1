@@ -15,11 +15,15 @@ class AsyncEventService:
             if event_id not in self.locks:
                 self.locks[event_id] = asyncio.Lock()
             return self.locks[event_id]
-        
+    
     async def reserve_ticket(self, user_id, event_id, seat_number=None):
         """티켓 예약"""
         event_lock = await self.get_event_lock(event_id)
         async with event_lock:
+            # 좌석 번호가 입력되지 않으면 좌석을 예약할 수 없다.
+            if not seat_number:
+                return f"좌석을 선택 안했어 다시 해"
+            
             available_tickets = await self.db_connector.execute_query(
                 "SELECT available_tickets FROM events WHERE id = ?", 
                 params=(event_id,), 
@@ -32,12 +36,23 @@ class AsyncEventService:
             )
                 return f" {event_id} 대기자로 갔어"
 
+            seat_exists = await self.db_connector.execute_query(
+                "SELECT status FROM seats WHERE event_id = ? AND seat_number = ?",
+                params=(event_id, seat_number),
+                fetch_one=True
+            )
+            logging.debug(f"[cancel_reservation] 빈좌석확인: {seat_exists}")
+
+            if seat_exists[0] == '예약 불가능':
+                return f"{seat_number} 자리는 예약돼있어"
+
             # 예약 처리
             await self.db_connector.execute_query( # 예약
                 "INSERT INTO reservations (user_id, event_id,seat_number) VALUES (?, ?, ?)", 
                 params=(user_id, event_id, seat_number)
             )
-            await self.db_connector.execute_query( #좌석 예약 불가능 변경
+            #좌석 예약 불가능 변경
+            await self.db_connector.execute_query( 
                 "UPDATE seats SET status = '예약 불가능' WHERE event_id = ? AND seat_number = ?", 
                 params=(event_id,seat_number)
             )
@@ -64,7 +79,11 @@ class AsyncEventService:
             id_exists,seat = reservation_exists
             if not id_exists:
                 return f"No reservation found for user {user_id} on event {event_id}."
-            
+            else:
+                await self.db_connector.execute_query(
+                "UPDATE seats SET status = '예약 가능' WHERE event_id = ? AND seat_number = ?",
+                params=(event_id, seat)
+            )
             # 예약 취소 처리
             await self.db_connector.execute_query(
                 "DELETE FROM reservations WHERE user_id = ? AND event_id = ?",
@@ -93,7 +112,7 @@ class AsyncEventService:
         try:
             # 대기자 조회
             logging.debug(f"[cancel_reservation] handle: {seat_number}")
-          
+
             waitlist_user = await self.db_connector.execute_query(
                 "SELECT user_id FROM waitlist WHERE event_id = ? ORDER BY id ASC LIMIT 1",
                 params=(event_id,),
@@ -104,17 +123,25 @@ class AsyncEventService:
                 return  # 대기자가 없으면 종료
 
             waitlist_user_id = waitlist_user[0]
-            event_name = await self.db_connector.execute_query( # event 이름 조회
+            # event 이름 조회
+            event_name = await self.db_connector.execute_query( 
                 "SELECT name FROM events WHERE id = ?",
                 params=(event_id,),
                 fetch_one=True
             )
-            logging.debug(f"[cancel_reservation] 대기자t: {waitlist_user_id}")
-            await self.db_connector.execute_query( #대기자를 예약자에 추가
+            #예약을 다시 하니까 좌석 불가능으로
+            await self.db_connector.execute_query(
+                "UPDATE seats SET status = '예약 불가능' WHERE event_id = ? AND seat_number = ?",
+                params=(event_id, seat_number)
+            )
+            logging.debug(f"[cancel_reservation] 대기자: {waitlist_user_id}")
+            #대기자를 예약자에 추가
+            await self.db_connector.execute_query( 
                 "INSERT INTO reservations (user_id, event_id,seat_number) VALUES (?, ?, ?)", 
                 params=(waitlist_user_id, event_id, seat_number)
             )
-            await self.db_connector.execute_query( #현재 티켓 개수 다시 줄이기
+            #현재 티켓 개수 다시 줄이기
+            await self.db_connector.execute_query( 
                 "UPDATE events SET available_tickets = available_tickets - 1 WHERE id = ?",
                 params=(event_id,)
             )
@@ -141,6 +168,46 @@ class AsyncEventService:
             print(f"Error in handle_waitlist: {e}")
             raise  # 디버깅을 위해 예외 재발생
 
+    async def get_seat_availability(self, event_id):
+        """이벤트의 좌석 상태 조회"""
+        # 해당 이벤트의 좌석을 가져옴
+        seats = await self.db_connector.execute_query(
+            "SELECT seat_number, status FROM seats WHERE event_id = ?",
+            params=(event_id,),
+            fetch_all=True
+        )
+
+        if not seats:
+            return f"Event {event_id} not found or no seats available."
+        
+        # 좌석을 2D 배열로 그룹화하기 위해 행렬 크기 설정 (예시: 3x3)
+        rows = 3  # 행의 수
+        cols = 3  # 열의 수
+        seat_matrix = [['' for _ in range(cols)] for _ in range(rows)]  # 2D 배열 초기화
+
+        # 좌석 번호를 행렬에 배치
+        for seat in seats:
+            seat_number = seat[0]  # 좌석 번호 (예: C1, C2, C3)
+            status = seat[1]  # 좌석 상태 (예: "available", "reserved")
+            
+            try:
+                # 좌석 번호에서 행, 열 추출
+                row = int(seat_number[1]) - 1  # C1 -> row 0, C2 -> row 1, etc.
+                col = ord(seat_number[0]) - ord('A')  # A -> column 0, B -> column 1, etc.
+                
+                # 좌석 상태 업데이트
+                seat_matrix[row][col] = f"{seat_number}({status})"
+            except Exception as e:
+                print(f"Error extracting row/column for seat {seat_number}: {e}")
+                # 오류가 발생하면 해당 좌석을 건너뛰고 계속 진행
+                return f"좌석현황에러"
+
+        # 좌석을 2D 배열 형식으로 포맷팅하여 출력
+        seat_info = ""
+        for row in seat_matrix:
+            seat_info += " | ".join([seat if seat else "Empty" for seat in row]) + "\n"
+
+        return f"Event {event_id} Seat Availability:\n{seat_info}"    
             
     async def get_all_events(self):
         """모든 이벤트 조회"""

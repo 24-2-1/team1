@@ -154,15 +154,15 @@ async def first_data():
                     params=event
                 )
             seats= {
-                "1": ("A1", "A2", "A3", "A4", "A5", "A6"),
-                "2":("B1", "B2", "B3", "B4"),
-                "3":("C1", "C2", "C3", "C4")
+                "1": ("A1", "A2", "A3", "B1", "B2", "B3", "C1", "C2", "C3"),
+                "2":("A1", "A2", "A3", "B1", "B2", "B3", "C1", "C2", "C3"),
+                "3":("A1", "A2", "A3", "B1", "B2", "B3", "C1", "C2", "C3")
             }
             for event_id, seat_list in seats.items():
                 for seat in seat_list:
                     await connector.execute_query(
                         "INSERT INTO seats (event_id, seat_number, status) VALUES (?, ?, ?)",
-                        params=(event_id, seat, '예약 가능')  # 기본 상태는 'available'로 설정
+                        params=(event_id, seat, '예약 가능')  # 기본 상태는 '예약가능'로 설정
                     )
             print("초기 이벤트 데이터가 성공적으로 삽입되었습니다.")
         else:
