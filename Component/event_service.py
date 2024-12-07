@@ -30,7 +30,7 @@ class AsyncEventService:
                 "INSERT INTO waitlist (user_id, event_id) VALUES (?, ?)", 
                 params=(user_id, event_id)
             )
-                return f"Error: No tickets available for event {event_id}"
+                return f" {event_id} 대기자로 갔어"
 
             # 예약 처리
             await self.db_connector.execute_query( # 예약
@@ -134,7 +134,6 @@ class AsyncEventService:
                 "DELETE FROM waitlist WHERE user_id = ? AND event_id = ?",
                 params=(waitlist_user_id, event_id)
             )
-            print(f"Removed waitlist user {waitlist_user_id} for event {event_id}.")
 
             # 로그 기록
             await log_action(self.db_connector, waitlist_user_id, f"{event_id} 예약했음", event_id)

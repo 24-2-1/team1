@@ -39,6 +39,7 @@ class CommandHandler:
         self.command_map = {
             'register': lambda args: self.user_service.register_user(*args),
             'login': lambda args: self.user_service.login(*args),
+            'logout': lambda args: self.user_service.logout(*args),
             'view_events': lambda args: self.event_service.get_all_events(),  # 수정
             'view_logs': lambda args: self.event_service.get_user_logs(*args),
             'reserve_ticket': lambda args: self.event_service.reserve_ticket(*args),
@@ -61,6 +62,11 @@ class CommandHandler:
                     if response != "로그인 실패":
                         clients[commands[1]] = writer  # 로그인 성공 시 clients에 추가
                     return response
+                # elif command == "logout":
+                #         user_id = commands[1]
+                #         if user_id in clients:
+                #             del clients[user_id]
+                #         return f"{user_id}님이 로그아웃 하셨습니다."
                 # 일반 명령어의 경우 처리 후 반환
                 return response              
             else:
@@ -78,7 +84,7 @@ class SocketServer:
         self.host = host
         self.port = port
         self.db_connector = AsyncDatabaseConnector()
-        self.user_service = AsyncUserService(self.db_connector)
+        self.user_service = AsyncUserService(self.db_connector,clients)
         self.event_service = AsyncEventService(self.db_connector,clients)
         self.command_handler = CommandHandler(self.user_service, self.event_service)
 
@@ -103,6 +109,9 @@ class SocketServer:
                     response = await self.command_handler.handle_command(message,writer)
                     writer.write(response.encode('utf-8'))
                     await writer.drain()
+                    
+                    if message.startswith("login"):
+                        current_user = message.split(' ')[1]
 
                 except Exception as e:
                     print(f"Error handling request from {addr}: {e}")
@@ -116,6 +125,8 @@ class SocketServer:
             print(f"Unexpected error with client {addr}: {e}")
         finally:
             # 연결 종료 시 자원 정리
+            if current_user and current_user in clients:
+                del clients[current_user]
             print(f"Disconnected from {addr}")
             writer.close()
             await writer.wait_closed()

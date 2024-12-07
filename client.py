@@ -35,8 +35,10 @@ class EventClient:
                 data = self.client_socket.recv(1024).decode('utf-8')
                 if not data:
                     print("\n서버 연결이 끊어졌습니다.")
+                    self.running = False
                     break
-                print(f"\n[서버 메시지]: {data}")
+                with patch_stdout():
+                    print(f"\n[서버 메시지]: {data}")
             except Exception as e:
                 print(f"메시지 수신 중 오류 발생: {e}")
                 break
@@ -96,6 +98,17 @@ class ViewClient(EventClient):
                 self.start_receive_thread()  # 로그인 후 메시지 수신 쓰레드 시작
                 print("로그인 성공")
                 break  # while 문을 종료
+    def logout(self):
+        """로그아웃 요청 처리"""
+        if not self.login_user:
+            print("로그인 중이 아닌데")
+            return
+        command = f"logout {self.login_user}"
+        self.send(command)
+        response = self.client_socket.recv(1024).decode('utf-8')
+        if response:
+            print(response)
+            self.login_user = None  # 클라이언트 상태 업데이트
 
     def view_events(self):
         """이벤트 목록 조회"""
@@ -180,32 +193,33 @@ class ViewClient(EventClient):
             print("올바르지 않은 선택입니다. 다시 시도하세요.")  # 잘못된 선택 처리
             return False
     
-    def logout(self):
-        self.login_user = None
-    
     def run_menu(self):
         """프로그램 실행 함수: 사용자 선택에 따라 메뉴를 반복 출력하며 처리"""
+        self.start_receive_thread()
         while True:
-            if self.login_user:
-                # 로그인된 상태에서 메뉴 출력
-                self.show_logged_in_menu()
-                choice = self.session.prompt("메뉴를 선택하세요: ").strip()
-                if choice == "0":
-                    print("프로그램을 종료합니다.")
-                    self.close()  # 연결 종료
-                    exit()  # 프로그램 완전히 종료
-                if not self.handle_user_action(choice):  # 잘못된 선택 시 다시 시도
-                    continue
-            else:
-                # 로그인되지 않은 상태에서 메뉴 출력
-                self.show_initial_menu()
-                choice = self.session.prompt("메뉴를 선택하세요: ").strip()
-                if choice == "0":
-                    print("프로그램을 종료합니다.")
-                    self.close()  # 연결 종료
-                    exit()  # 프로그램 완전히 종료
-                if not self.handle_guest_action(choice):  # 잘못된 선택 시 프로그램 종료
-                    continue
+            try:
+                if self.login_user:
+                    # 로그인된 상태에서 메뉴 출력
+                    self.show_logged_in_menu()
+                    choice = self.session.prompt("메뉴를 선택하세요: ").strip()
+                    if choice == "0":
+                        print("프로그램을 종료합니다.")
+                        self.close()  # 연결 종료
+                        exit()  # 프로그램 완전히 종료
+                    if not self.handle_user_action(choice):  # 잘못된 선택 시 다시 시도
+                        continue
+                else:
+                    # 로그인되지 않은 상태에서 메뉴 출력
+                    self.show_initial_menu()
+                    choice = self.session.prompt("메뉴를 선택하세요: ").strip()
+                    if choice == "0":
+                        print("프로그램을 종료합니다.")
+                        self.close()  # 연결 종료
+                        exit()  # 프로그램 완전히 종료
+                    if not self.handle_guest_action(choice):  # 잘못된 선택 시 프로그램 다시
+                        continue
+            except Exception as e:
+                print(f"메뉴 처리 중 오류 발생: {e}")
 
 
 if __name__ == "__main__":

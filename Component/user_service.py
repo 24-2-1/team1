@@ -1,8 +1,9 @@
 from DB.db import AsyncDatabaseConnector
 from .event_service import log_action
 class AsyncUserService:
-    def __init__(self, db_connector: AsyncDatabaseConnector):
+    def __init__(self, db_connector: AsyncDatabaseConnector,clients):
         self.db_connector = db_connector
+        self.clients = clients
 
     async def register_user(self, userid, password):
         """사용자 등록"""
@@ -42,6 +43,13 @@ class AsyncUserService:
         except Exception as e:
             print(f"Unexpected error during login: {e}")
             return "로그인 실패"
+    
+    def logout(self,user_id):
+        """로그아웃 요청 처리"""
+        if user_id in self.clients:
+            del self.clients[user_id]
+        return f"{user_id}님이 로그아웃 하셨습니다."
+
     
 
 
