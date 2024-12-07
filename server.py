@@ -41,10 +41,11 @@ class CommandHandler:
             'login': lambda args: self.user_service.login(*args),
             'logout': lambda args: self.user_service.logout(*args),
             'view_events': lambda args: self.event_service.get_all_events(*args),  # 수정
-            'check_notifications': lambda args: self.event_service.get_user_logs(*args), # 알람확인
+            'check_log': lambda args: self.event_service.get_user_logs(*args), # 알람확인
             'reserve_ticket': lambda args: self.event_service.reserve_ticket(*args),
             'cancel': lambda args: self.event_service.cancel_reservation(*args),
-            'view_seat': lambda args: self.event_service.get_seat_availability(args[0])  # 좌석 조회 추가
+            'view_seat': lambda args: self.event_service.get_seat_availability(args[0]),  # 좌석 조회 추가
+            'check_reservation_status': lambda args: self.event_service.get_all_reservations_for_user(*args)  # 예약 상태 조회 수정
         }
 
     async def handle_command(self, data,writer):

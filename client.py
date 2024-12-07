@@ -12,7 +12,6 @@ class EventClient:
         self.session = PromptSession()
         self.running = True  # 클라이언트 실행 상태
         
-
     def connect(self):
         """서버에 연결"""
         try:
@@ -118,6 +117,13 @@ class ViewClient(EventClient):
         response = self.client_socket.recv(1024).decode('utf-8')
         print(response)
         
+    def check_reservation_status(self):
+        """예약 현황 조회"""
+        command = f"check_reservation_status {self.login_user}"
+        self.send(command)
+        response = self.client_socket.recv(1024).decode('utf-8')
+        print(response)
+        
     def view_events(self):
         """이벤트 목록 조회"""
         command = "view_events"
@@ -128,15 +134,15 @@ class ViewClient(EventClient):
         print(response)  # 서버에서 받은 응답 출력
         self.session.prompt("메뉴로 돌아가려면 [Enter]")
         
-    def check_notifications(self):
+    def check_log(self):
         """알림 확인"""
         # 로그인한 사용자의 ID를 기반으로 알림 요청
-        command = f"check_notifications {self.login_user}"
+        command = f"check_log {self.login_user}"
         self.send(command)
         
         # 서버에서 받은 응답 처리
         response = self.client_socket.recv(1024).decode('utf-8')
-        print(f"Notifications:\n{response}")
+        print(f"사용자 기록:\n{response}")
         
     def reserve_ticket(self):
         """티켓 예약"""
@@ -146,7 +152,7 @@ class ViewClient(EventClient):
         response = self.client_socket.recv(1024).decode('utf-8')
         print(response)
         # 예약할 좌석을 입력받음
-        seat_number = self.session.prompt("Enter seat number to reserve (e.g., A1, B1, C3): ")  # 좌석 번호 입력 받기
+        seat_number = self.session.prompt("좌석번호 입력: (e.g., A1, B1, C3): ")  # 좌석 번호 입력 받기
         command = f"reserve_ticket {self.login_user} {event_id} {seat_number}"  # 좌석 번호를 포함한 명령어 전송
         self.send(command)
         response = self.client_socket.recv(1024).decode('utf-8')
@@ -175,7 +181,8 @@ class ViewClient(EventClient):
         print("2. 좌석 현황 조회")  # 좌석현황조회 선택지
         print("3. 티켓 예약")  # 티켓 예약 선택지
         print("4. 예약 취소")  # 예약 취소 선택지
-        print("5. 알림 확인")  # 알림 확인 선택지
+        print("5. 기록 확인")  # 알림 확인 선택지
+        print("6. 예약 현황 조회")
         print("9. 로그아웃")  # 로그아웃 선택지
         print("0. 종료")  
 
@@ -195,7 +202,8 @@ class ViewClient(EventClient):
             "2": self.view_seat_availability,  # 좌석 현황 조회 처리
             "3": self.reserve_ticket,  # 티켓 예약 처리
             "4": self.cancel_reserve,  # 티켓 취소 처리
-            "5": self.check_notifications,  # 알림 확인 처리
+            "5": self.check_log,  # 알림 확인 처리
+            "6": self.check_reservation_status,  # 예약 현황 조회 추가
             "9": self.logout,  # 로그아웃 처리
         }
         return self._handle_action(actions, choice)  # 선택한 액션 처리

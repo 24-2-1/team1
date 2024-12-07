@@ -239,11 +239,31 @@ class AsyncEventService:
             )
             return events_list  # 이제 문자열로 반환
         return "No events available."
+    
+    async def get_all_reservations_for_user(self, user_id):
+        """사용자가 예약한 모든 이벤트와 해당 좌석 상태 조회"""
+        # 사용자가 예약한 모든 이벤트를 가져옴
+        reservations = await self.db_connector.execute_query(
+            "SELECT r.event_id, r.seat_number, e.name, e.date FROM reservations as r JOIN events e ON r.event_id = e.id WHERE r.user_id = ?",
+            params=(user_id,),
+            fetch_all=True
+        )
+
+        if not reservations:
+            return f"사용자 {user_id}는 예약한 이벤트가 없습니다."
+
+        # 예약한 이벤트들의 정보를 포맷팅하여 반환
+        reservation_info = ""
+        for event_id, seat_number, event_name, event_date in reservations:
+            reservation_info += f"이벤트 ID: {event_id}, 이벤트명: {event_name}, 좌석: {seat_number}, 날짜: {event_date}\n"
+        
+        return f"사용자 {user_id}의 예약 내역:\n{reservation_info}"
+   
 
     async def get_user_logs(self, user_id):
         """사용자의 로그 기록 조회"""
         logs = await self.db_connector.execute_query(
-            "SELECT action, timestamp FROM logs WHERE user_id = ? ORDER BY timestamp DESC", 
+            "SELECT action, timestamp FROM logs WHERE user_id = ? ORDER BY timestamp ASC", 
             params=(user_id,),
             fetch_all=True
         )
