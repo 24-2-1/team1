@@ -121,7 +121,6 @@ class ViewClient(EventClient):
             else:
                 self.login_user = response
                 print("로그인 성공")
-                print(response)
                 break
             
     async def logout(self):
@@ -185,6 +184,9 @@ class ViewClient(EventClient):
         command = f"view_seat {event_id}"
         await self.send(command)
         response = await self.get_response()  # 큐에서 응답 가져오기
+        if response == "이벤트를 잘못 선택하셨습니다.":
+            print(response)
+            await self.reserve_ticket()
         print(response)
         # 예약할 좌석을 입력받음
         seat_number = await self.session.prompt_async("좌석번호 입력: ex) A1, B1, C3): ")  # 좌석 번호 입력 받기

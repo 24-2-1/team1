@@ -197,7 +197,7 @@ class AsyncEventService:
         )
 
         if not seats:
-            return f"Event {event_id} not found or no seats available."
+            return f"이벤트를 잘못 선택하셨습니다."
         
         # 좌석을 2D 배열로 그룹화하기 위해 행렬 크기 설정 (예시: 3x3)
         rows = 3  # 행의 수
