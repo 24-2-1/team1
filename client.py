@@ -153,7 +153,7 @@ class ViewClient(EventClient):
     async def logout(self):
         """로그아웃 요청 처리"""
         if not self.login_user:
-            print("로그인 중이 아닌데")
+            print("로그인 중이 아닙니다..")
             return
         command = f"logout {self.login_user}"
         await self.send(command)
