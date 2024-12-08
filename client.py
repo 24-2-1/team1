@@ -78,29 +78,42 @@ class ViewClient(EventClient):
          
     async def register(self):
         """회원가입 요청 처리"""
+        check_register=None
         while True:
             print("메뉴창으로 돌아가려면 0번 입력")
             name = await self.session.prompt_async("아이디 입력: ")
             name = name.strip()
-            if not name:
-                print("아이디는 비워둘 수 없습니다. 다시 입력하세요.")  # 수정됨
-                continue
             if name == "0":
-                return
-            password = await self.session.prompt_async("비밀번호 입력: ")
-            password = password.strip()
-            if not password:
-                print("비밀번호는 비워둘 수 없습니다. 다시 입력하세요.")  # 수정됨
-                continue            
-            command = f"register {name} {password}"
-            await self.send(command)
-            response = await self.get_response()  # 큐에서 응답 가져오기
-            print(f"{response} 회원가입 성공")
+                break # 메뉴로 돌아감
+            
+            if not name:
+                print("아이디를 입력해야 합니다. 다시 시도해주세요.")
+                continue  # 아이디 입력이 없으면 다시 입력 받음
 
-            if "already exists" in response:
-                print("이미 회원가입하셨습니다.")
-            else:
-                break
+            while True:
+                password = await self.session.prompt_async("비밀번호 입력: ")
+                password = password.strip()
+                if password == "0":
+                    break
+
+                if not password:
+                    print("비밀번호는 비워둘 수 없습니다. 다시 입력하세요.")
+                    continue  # 비밀번호 입력이 없으면 다시 입력 받음
+
+                # 비밀번호가 정상적으로 입력되었을 때만 서버로 요청
+                command = f"register {name} {password}"
+                await self.send(command)
+                response = await self.get_response()  # 큐에서 응답 가져오기
+
+                if "already exists" in response:
+                    print("이미 회원가입하셨습니다.")  # 이미 회원가입된 경우 처리
+                    break  # 회원가입 절차 종료
+                else:
+                    print(f"{response} 회원가입 성공")  # 성공 메시지 출력
+                    check_register = True
+                    break  # 회원가입이 성공하면 종료
+            if check_register:
+                break  # 성공적으로 회원가입되었으면 종료
 
     async def login(self):
         """로그인 요청 처리"""
@@ -110,22 +123,31 @@ class ViewClient(EventClient):
             userid = userid.strip()
             if userid == "0":
                 return
+
             if not userid:
-                print("아이디는 비워둘 수 없습니다. 다시 입력하세요.")  # 수정됨
-                continue
-            password = await self.session.prompt_async("비밀번호 입력: ")
-            password = password.strip()
-            if not password:
-                print("비밀번호는 비워둘 수 없습니다. 다시 입력하세요.")  # 수정됨
-                continue
-            command = f"login {userid} {password}"
-            await self.send(command)
-            response = await self.get_response()  # 큐에서 응답 가져오기
-            if response == "로그인 실패":
-                print(response)
-            else:
-                self.login_user = response
-                print("로그인 성공")
+                print("아이디를 입력해야 합니다. 다시 시도해주세요.")
+                continue  # 아이디 입력이 없으면 다시 입력 받음
+
+            while True:
+                password = await self.session.prompt_async("비밀번호 입력: ")
+                password = password.strip()
+                if not password:
+                    print("비밀번호는 비워둘 수 없습니다. 다시 입력하세요.")
+                    continue  # 비밀번호 입력이 없으면 다시 입력 받음
+                elif password == "0":
+                    break  # 비밀번호 입력 창에서 '0'을 누르면 아이디 입력 창으로 돌아감
+                
+                command = f"login {userid} {password}"
+                await self.send(command)
+                response = await self.get_response()  # 큐에서 응답 가져오기
+                
+                if response == "로그인 실패":
+                    print(response)
+                else:
+                    self.login_user = response
+                    print("로그인 성공")
+                    break
+            if self.login_user:  # 로그인 성공 시 빠져나옴
                 break
             
     async def logout(self):
@@ -185,35 +207,51 @@ class ViewClient(EventClient):
              
     async def reserve_ticket(self):
         """티켓 예약"""
-        event_id = await self.session.prompt_async("Enter event ID to reserve: ")
-        if not event_id:
-            print("이벤트 ID는 비워둘 수 없습니다. 다시 입력하세요.")  # 수정됨
-            return await self.reserve_ticket()        
-        command = f"view_seat {event_id}"
-        await self.send(command)
-        response = await self.get_response()  # 큐에서 응답 가져오기
-        if response == "이벤트를 잘못 선택하셨습니다.":
+        check_reserve = None
+        while True:
+            event_id = await self.session.prompt_async("Enter event ID to reserve: ")
+            if not event_id:
+                print("이벤트 ID는 비워둘 수 없습니다. 다시 입력하세요.")  # 수정됨
+                continue    
+            command = f"view_seat {event_id}"
+            await self.send(command)
+            response = await self.get_response()  # 큐에서 응답 가져오기
+            if response == "이벤트를 잘못 선택하셨습니다.":
+                print(response)
+                continue
             print(response)
-            await self.reserve_ticket()
-        print(response)
-        # 예약할 좌석을 입력받음
-        seat_number = await self.session.prompt_async("좌석번호 입력: ex) A1, B1, C3): ")  # 좌석 번호 입력 받기
-        if not seat_number:
-            print("좌석 번호는 비워둘 수 없습니다. 다시 입력하세요.")  # 수정됨
-            return await self.reserve_ticket()
-        command = f"reserve_ticket {self.login_user} {event_id} {seat_number}"  # 좌석 번호를 포함한 명령어 전송
-        await self.send(command)
-        response = await self.get_response()  # 큐에서 응답 가져오기
-        print(response)          
+            # 예약할 좌석을 입력받음
+            while True:
+                seat_number = await self.session.prompt_async("좌석번호 입력: ex) A1, B1, C3): ")  # 좌석 번호 입력 받기
+                if not seat_number:
+                    print("좌석 번호는 비워둘 수 없습니다. 다시 입력하세요.")  # 수정됨
+                    continue
+                command = f"reserve_ticket {self.login_user} {event_id} {seat_number}"  # 좌석 번호를 포함한 명령어 전송
+                await self.send(command)
+                response = await self.get_response()  # 큐에서 응답 가져오기
+                if response == "티켓 예약 성공" or response == "대기자로 갔어":
+                    check_reserve = True
+                    print(response)
+                    break
+                else:
+                    print(response)     
+            if check_reserve == True:
+                break
+                 
         
     async def cancel_reserve(self):
         """이벤트 취소"""
-        event_id = await self.session.prompt_async("Enter event ID to cancel_event: ")
-        command = f"cancel {self.login_user} {event_id}"
-        await self.send(command)
-        response = await self.get_response()  # 큐에서 응답 가져오기
-        print(response)  
-        
+        while True:
+            event_id = await self.session.prompt_async("Enter event ID to cancel_event: ")
+            if not event_id:
+                print("이벤트 ID는 비워둘 수 없습니다. 다시 입력하세요.")  # 수정됨
+                continue
+            command = f"cancel {self.login_user} {event_id}"
+            await self.send(command)
+            response = await self.get_response()  # 큐에서 응답 가져오기
+            print(response)
+            break
+            
     async def run_manage_function(self):
         """관리장 실행"""
         try:

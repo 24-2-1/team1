@@ -40,7 +40,7 @@ class AsyncEventService:
                 "INSERT INTO waitlist (user_id, event_id, event_name) VALUES (?, ?, ?)", 
                 params=(user_id, event_id, event_name)
             )
-                return f" {event_id} 대기자로 갔어"
+                return f"대기자로 갔어"
             logging.debug(f"[cancel_reservation] 티켓개수 확인 뒤: {user_id}")
             seat_exists = await self.db_connector.execute_query(
                 "SELECT status FROM seats WHERE event_id = ? AND seat_number = ?",

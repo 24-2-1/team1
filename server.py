@@ -45,9 +45,9 @@ class CommandHandler:
             'reserve_ticket': lambda args: self.event_service.reserve_ticket(*args),
             'cancel': lambda args: self.event_service.cancel_reservation(*args),
             'view_seat': lambda args: self.event_service.get_seat_availability(args[0]),  # 좌석 조회 추가
-            'check_reservation_status': lambda args: self.event_service.get_all_reservations_for_user(*args)  # 예약 상태 조회 수정
+            'check_reservation_status': lambda args: self.event_service.get_all_reservations_for_user(*args),  # 예약 상태 조회 수정
         }
-
+    
     async def handle_command(self, data, writer):
         try:
             commands = data.strip().split(' ')
@@ -83,7 +83,7 @@ class SocketServer:
         self.user_service = AsyncUserService(self.db_connector,clients)
         self.event_service = AsyncEventService(self.db_connector,clients)
         self.command_handler = CommandHandler(self.user_service, self.event_service)
-
+    
     async def handle_client(self, reader, writer):
         """클라이언트 요청 처리"""
         addr = writer.get_extra_info('peername')
