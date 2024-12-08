@@ -13,12 +13,15 @@ class EventClient:
         self.queue = asyncio.Queue()  # 수신 데이터를 관리할 큐
 
     async def connect(self):
-        """서버에 연결"""
+        if self.writer is not None:
+            print("이미 서버에 연결되어 있습니다.")
+            return
         try:
             self.reader, self.writer = await asyncio.open_connection(self.host, self.port)
             print(f"서버에 연결되었습니다: {self.host}:{self.port}")
         except Exception as e:
             print(f"서버 연결 중 오류 발생: {e}")
+
 
     async def send(self, data):
         """서버로 요청 전송"""
@@ -123,7 +126,7 @@ class ViewClient(EventClient):
         
     async def view_seat_availability(self):
         """이벤트 좌석 현황 조회"""
-        event_id = self.session.prompt("event_id 입력: ")
+        event_id = await self.session.prompt_async("event_id 입력: ")
         event_id = event_id.strip()
         command = f"view_seat {event_id}"
         await self.send(command)
@@ -154,17 +157,17 @@ class ViewClient(EventClient):
         response = await self.get_response()  # 큐에서 응답 가져오기
         print(f"사용자 기록:\n{response}")
         print(response)  # 서버에서 받은 응답 출력
-        await self.session.prompt("메뉴로 돌아가려면 [Enter]")
+        await self.session.prompt_async("메뉴로 돌아가려면 [Enter]")
              
     async def reserve_ticket(self):
         """티켓 예약"""
-        event_id = await self.session.prompt("Enter event ID to reserve: ")
+        event_id = await self.session.prompt_async("Enter event ID to reserve: ")
         command = f"view_seat {event_id}"
         await self.send(command)
         response = await self.get_response()  # 큐에서 응답 가져오기
         print(response)
         # 예약할 좌석을 입력받음
-        seat_number = await self.session.prompt("좌석번호 입력: ex) A1, B1, C3): ")  # 좌석 번호 입력 받기
+        seat_number = await self.session.prompt_async("좌석번호 입력: ex) A1, B1, C3): ")  # 좌석 번호 입력 받기
         command = f"reserve_ticket {self.login_user} {event_id} {seat_number}"  # 좌석 번호를 포함한 명령어 전송
         await self.send(command)
         response = await self.get_response()  # 큐에서 응답 가져오기
@@ -172,12 +175,12 @@ class ViewClient(EventClient):
         
     async def cancel_reserve(self):
         """이벤트 취소"""
-        event_id = await self.session.prompt("Enter event ID to cancel_event: ")
+        event_id = await self.session.prompt_async("Enter event ID to cancel_event: ")
         command = f"cancel {self.login_user} {event_id}"
         await self.send(command)
         response = await self.get_response()  # 큐에서 응답 가져오기
         print(response)  
-               
+              
     def show_initial_menu(self):
         """초기 메뉴를 화면에 출력하는 함수"""
         print("\n===== 초기 메뉴 =====")
@@ -258,10 +261,22 @@ class ViewClient(EventClient):
                 print(f"메뉴 처리 중 오류 발생: {e}")
                 
     async def main(self):
-        """클라이언트 실행"""
-        await self.connect()
+        if not self.writer:
+            await self.connect()
         await self.run_menu()
 
 if __name__ == "__main__":
     client = ViewClient()
-    asyncio.run(client.main())
+    try:
+        # 실행 중인 이벤트 루프를 가져옵니다.
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # 이미 실행 중인 루프에서는 create_task로 비동기 작업을 추가합니다.
+            loop.create_task(client.main())
+        else:
+            # 새로운 이벤트 루프를 실행합니다.
+            loop.run_until_complete(client.main())
+    except RuntimeError as e:
+        print(f"RuntimeError 발생: {e}")
+
+
