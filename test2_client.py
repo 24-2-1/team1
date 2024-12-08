@@ -1,5 +1,4 @@
-import socket
-import threading
+import asyncio
 from prompt_toolkit import PromptSession
 from prompt_toolkit.patch_stdout import patch_stdout
 
@@ -8,26 +7,30 @@ class EventClient:
         self.host = host
         self.port = port
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.reader = None
+        self.writer = None
         self.login_user = None
         self.session = PromptSession()
         self.running = True  # 클라이언트 실행 상태
-        
-    def connect(self):
+        self.queue = asyncio.Queue()  # 수신 데이터를 관리할 큐
+
+    async def connect(self):
         """서버에 연결"""
         try:
-            self.client_socket.connect((self.host, self.port))
-            print(f"Connected to server at {self.host}:{self.port}")
+            self.reader, self.writer = await asyncio.open_connection(self.host, self.port)
+            print(f"서버에 연결되었습니다: {self.host}:{self.port}")
         except Exception as e:
-            print(f"Error connecting to server: {e}")
+            print(f"서버 연결 중 오류 발생: {e}")
 
-    def send(self, data):
+    async def send(self, data):
         """서버로 요청 전송"""
         try:
-            self.client_socket.sendall(data.encode('utf-8')) 
+            self.writer.write(data.encode('utf-8'))
+            await self.writer.drain()
         except Exception as e:
             print(f"메시지 전송 중 오류 발생: {e}")
-    
-    def receive(self):
+
+    async def receive(self):
         """서버로부터 메시지 수신"""
         while self.running:
             try:
@@ -42,27 +45,36 @@ class EventClient:
                 print(f"메시지 수신 중 오류 발생: {e}")
                 self.running = False
                 break
-            
+
     def start_receive_thread(self):
         """메시지 수신용 쓰레드 시작"""
         recv_thread = threading.Thread(target=self.receive, daemon=True)
-        recv_thread.start()
-        
-    def close(self):
-        """서버 연결 종료"""
-        self.running = False
-        self.client_socket.close()
+
+    async def get_response(self):
+        """큐에서 서버 응답 가져오기"""
+        try:
+            response = await self.queue.get()  # 큐에서 데이터 가져오기
+            return response
+        except Exception as e:
+            print(f"응답 처리 중 오류 발생: {e}")
+            
+    async def close(self):
+        """연결 종료"""
+        if self.writer:
+            self.writer.close()
+            await self.writer.wait_closed()
         print("서버 연결 종료.")
-  
-class ViewClient(EventClient):
+        
+class ViewClient(EventClient):      
     def __init__(self):
         super().__init__()
-    
-    def register(self):
+         
+    async def register(self):
         """회원가입 요청 처리"""
         while True:
             print("메뉴창으로 돌아가려면 0번 입력")
-            name = self.session.prompt("아이디 입력: ").strip()
+            name = await self.session.prompt_async("아이디 입력: ").strip()
+            name = name.strip()
             if name == "0":
                 self.run_menu()
             print("id를 다시 입력하려면 0번 입력")
@@ -80,93 +92,104 @@ class ViewClient(EventClient):
             else:
                 break
 
-    def login(self):
+    async def login(self):
         """로그인 요청 처리"""
         print("이전 화면으로 가시려면 0번 입력")
         while True:
-            userid = self.session.prompt("아이디 입력: ").strip()
+            userid = await self.session.prompt_async("아이디 입력: ")
+            userid = userid.strip()
             if userid == "0":
-                self.run_menu()
-            password = self.session.prompt("비밀번호 입력: ").strip()
+                return
+            password = await self.session.prompt_async("비밀번호 입력: ")
+            password = password.strip()
             command = f"login {userid} {password}"
-            self.send(command)
-            response = self.client_socket.recv(1024).decode('utf-8')
+            await self.send(command)
+            response = await self.get_response()  # 큐에서 응답 가져오기
             if response == "로그인 실패":
                 print(response)
             else:
                 self.login_user = response
-                self.start_receive_thread()  # 로그인 후 메시지 수신 쓰레드 시작
                 print("로그인 성공")
-                break  # while 문을 종료
-    def logout(self):
+                print(response)
+                break
+            
+    async def logout(self):
         """로그아웃 요청 처리"""
         if not self.login_user:
             print("로그인 중이 아닌데")
             return
         command = f"logout {self.login_user}"
-        self.send(command)
-        response = self.client_socket.recv(1024).decode('utf-8')
+        await self.send(command)
+        response = await self.get_response()  # 큐에서 응답 가져오기
         if response:
             print(response)
             self.login_user = None  # 클라이언트 상태 업데이트
             
-    def view_seat_availability(self):
-        """이벤트 좌석 현황 조회"""
-        event_id = self.session.prompt("event_id 입력: ").strip()
-        command = f"view_seat {event_id}"
-        self.send(command)
-        response = self.client_socket.recv(1024).decode('utf-8')
-        print(response)
-        
-    def check_reservation_status(self):
-        """예약 현황 조회"""
-        command = f"check_reservation_status {self.login_user}"
-        self.send(command)
-        response = self.client_socket.recv(1024).decode('utf-8')
-        print(response)
-        
-    def view_events(self):
+    async def view_events(self):
         """이벤트 목록 조회"""
         command = "view_events"
-        # response = self.send(command)
-        self.send(command)
-        response = self.client_socket.recv(1024).decode('utf-8')
-
-        print(response)  # 서버에서 받은 응답 출력
-        self.session.prompt("메뉴로 돌아가려면 [Enter]")
+        await self.send(command)
+        response = await self.get_response()  # 큐에서 응답 가져오기
+        print(response)
+        await self.session.prompt_async("메뉴로 돌아가려면 [Enter]")
         
-    def check_log(self):
+    async def view_seat_availability(self):
+        """이벤트 좌석 현황 조회"""
+        event_id = self.session.prompt("event_id 입력: ")
+        event_id = event_id.strip()
+        command = f"view_seat {event_id}"
+        await self.send(command)
+        response = await self.get_response()  # 큐에서 응답 가져오기
+        print(response)
+        
+    async def check_reservation_status(self):
+        """예약 현황 조회"""
+        command = f"check_reservation_status {self.login_user}"
+        await self.send(command)
+        response = await self.get_response()  # 큐에서 응답 가져오기
+        print(response)      
+          
+    async def view_events(self):
+        """이벤트 목록 조회"""
+        command = "view_events"
+        await self.send(command)
+        response = await self.get_response()  # 큐에서 응답 가져오기
+        print(response)  # 서버에서 받은 응답 출력
+
+    async def check_log(self):
         """알림 확인"""
         # 로그인한 사용자의 ID를 기반으로 알림 요청
         command = f"check_log {self.login_user}"
-        self.send(command)
+        await self.send(command)
         
         # 서버에서 받은 응답 처리
-        response = self.client_socket.recv(1024).decode('utf-8')
+        response = await self.get_response()  # 큐에서 응답 가져오기
         print(f"사용자 기록:\n{response}")
-        
-    def reserve_ticket(self):
+        print(response)  # 서버에서 받은 응답 출력
+        await self.session.prompt("메뉴로 돌아가려면 [Enter]")
+             
+    async def reserve_ticket(self):
         """티켓 예약"""
-        event_id = self.session.prompt("Enter event ID to reserve: ")
+        event_id = await self.session.prompt("Enter event ID to reserve: ")
         command = f"view_seat {event_id}"
-        self.send(command)
-        response = self.client_socket.recv(1024).decode('utf-8')
+        await self.send(command)
+        response = await self.get_response()  # 큐에서 응답 가져오기
         print(response)
         # 예약할 좌석을 입력받음
-        seat_number = self.session.prompt("좌석번호 입력: (e.g., A1, B1, C3): ")  # 좌석 번호 입력 받기
+        seat_number = await self.session.prompt("좌석번호 입력: ex) A1, B1, C3): ")  # 좌석 번호 입력 받기
         command = f"reserve_ticket {self.login_user} {event_id} {seat_number}"  # 좌석 번호를 포함한 명령어 전송
-        self.send(command)
-        response = self.client_socket.recv(1024).decode('utf-8')
-        print(response)
+        await self.send(command)
+        response = await self.get_response()  # 큐에서 응답 가져오기
+        print(response)          
         
-    def cancel_reserve(self):
+    async def cancel_reserve(self):
         """이벤트 취소"""
-        event_id = self.session.prompt("Enter event ID to cancel_event: ")
+        event_id = await self.session.prompt("Enter event ID to cancel_event: ")
         command = f"cancel {self.login_user} {event_id}"
-        self.send(command)
-        response = self.client_socket.recv(1024).decode('utf-8')
-        print(f"Server response: {response}")
-    
+        await self.send(command)
+        response = await self.get_response()  # 큐에서 응답 가져오기
+        print(response)  
+               
     def show_initial_menu(self):
         """초기 메뉴를 화면에 출력하는 함수"""
         print("\n===== 초기 메뉴 =====")
@@ -187,16 +210,15 @@ class ViewClient(EventClient):
         print("9. 로그아웃")  # 로그아웃 선택지
         print("0. 종료")  
 
-    def handle_guest_action(self, choice):
-        """로그인하지 않은 사용자의 선택에 따른 행동 처리 함수"""
+    async def handle_guest_action(self, choice):
         actions = {
             "1": self.register,  # 회원가입 처리
             "2": self.login,  # 로그인 처리
             "3": self.view_events, #뮤지컬 목록
         }
         return self._handle_action(actions, choice)  # 선택한 액션 처리
-    
-    def handle_user_action(self, choice):
+
+    async def handle_user_action(self, choice):
         """로그인한 사용자의 선택에 따른 행동 처리 함수"""
         actions = {
             "1": self.view_events,  # 이벤트 목록
@@ -207,10 +229,9 @@ class ViewClient(EventClient):
             "6": self.check_reservation_status,  # 예약 현황 조회 추가
             "9": self.logout,  # 로그아웃 처리
         }
-        return self._handle_action(actions, choice)  # 선택한 액션 처리
-
-
-    def _handle_action(self, actions, choice):
+        return await self._handle_action(actions, choice)  # 선택한 액션 처리
+    
+    async def _handle_action(self, actions, choice):
         """공통된 행동 처리 로직: 유효한 선택인지 확인 후 해당 처리 함수 호출"""
         action = actions.get(choice)  # 사용자가 선택한 옵션에 맞는 액션을 찾음
         if action:
@@ -218,40 +239,41 @@ class ViewClient(EventClient):
             return True
         else:
             print("올바르지 않은 선택입니다. 다시 시도하세요.")  # 잘못된 선택 처리
-            return False
-    
-    def run_menu(self):
-        """프로그램 실행 함수: 사용자 선택에 따라 메뉴를 반복 출력하며 처리"""
-        self.start_receive_thread()
+            return False        
+        
+    async def run_menu(self):
+        """메뉴 실행"""
+        asyncio.create_task(self.receive())  # 수신 루프를 백그라운드에서 실행
         while True:
             try:
                 if self.login_user:
-                    # 로그인된 상태에서 메뉴 출력
                     self.show_logged_in_menu()
                     with patch_stdout():
-                        choice = self.session.prompt("메뉴를 선택하세요: ").strip()
+                        choice = await self.session.prompt_async("메뉴를 선택하세요: ")
+                        choice = choice.strip()
                     if choice == "0":
                         print("프로그램을 종료합니다.")
-                        self.close()  # 연결 종료
-                        exit()  # 프로그램 완전히 종료
-                    if not self.handle_user_action(choice):  # 잘못된 선택 시 다시 시도
-                        continue
+                        await self.close()
+                        break
+                    await self.handle_user_action(choice)
                 else:
-                    # 로그인되지 않은 상태에서 메뉴 출력
                     self.show_initial_menu()
                     with patch_stdout():
-                        choice = self.session.prompt("메뉴를 선택하세요: ").strip()
+                        choice = await self.session.prompt_async("메뉴를 선택하세요: ")
+                        choice = choice.strip()
                     if choice == "0":
                         print("프로그램을 종료합니다.")
-                        self.close()  # 연결 종료
-                        exit()  # 프로그램 완전히 종료
-                    if not self.handle_guest_action(choice):  # 잘못된 선택 시 프로그램 다시
-                        continue
+                        await self.close()
+                        break
+                    await self.handle_guest_action(choice)
             except Exception as e:
                 print(f"메뉴 처리 중 오류 발생: {e}")
-
+                
+    async def main(self):
+        """클라이언트 실행"""
+        await self.connect()
+        await self.run_menu()
 
 if __name__ == "__main__":
     client = ViewClient()
-    client.connect()
-    client.run_menu()
+    asyncio.run(client.main())

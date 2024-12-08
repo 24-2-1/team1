@@ -164,13 +164,13 @@ class AsyncEventService:
             logging.debug(f"[cancel_reservation] 온라인: {self.clients}")
             # 클라이언트 연결 상태 확인
             if waitlist_user_id in self.clients:
-                target_writer = self.clients[waitlist_user_id]
-                message = f" {event_name} 앞 사람이 취소해서 자동 예약됐어."
+                client_socket = self.clients[waitlist_user_id]
+                message = f"예약하신 이벤트 {event_name}에서 좌석이 확보되었습니다."
                 try:
-                    target_writer.write(message.encode('utf-8'))
-                    await target_writer.drain()
+                    client_socket.sendall(message.encode('utf-8'))
+                    logging.info(f"Message sent to user {waitlist_user_id}: {message}")
                 except Exception as e:
-                    return f"handle 실패"
+                    logging.error(f"Error sending message to user {waitlist_user_id}: {e}")
 
             # 대기자 목록에서 삭제
             await self.db_connector.execute_query(
