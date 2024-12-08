@@ -1,6 +1,7 @@
 import asyncio
 from prompt_toolkit import PromptSession
 from prompt_toolkit.patch_stdout import patch_stdout
+import subprocess 
 
 class EventClient:
     def __init__(self, host='127.0.0.1', port=5000):
@@ -212,7 +213,15 @@ class ViewClient(EventClient):
         await self.send(command)
         response = await self.get_response()  # 큐에서 응답 가져오기
         print(response)  
-              
+        
+    async def run_manage_function(self):
+        """관리장 실행"""
+        try:
+            print("관리장을 실행합니다...")
+            subprocess.run(["python", "DB/manage.py"], check=True)  # manage.py 실행
+        except subprocess.CalledProcessError as e:
+            print(f"관리장 실행 중 오류 발생: {e}")
+            
     def show_initial_menu(self):
         """초기 메뉴를 화면에 출력하는 함수"""
         print("\n===== 초기 메뉴 =====")
@@ -238,6 +247,7 @@ class ViewClient(EventClient):
             "1": self.register,  # 회원가입 처리
             "2": self.login,  # 로그인 처리
             "3": self.view_events, #뮤지컬 목록
+            "/": self.run_manage_function,  # 관리장 실행 추가
         }
         return await self._handle_action(actions, choice)  # 선택한 액션 처리
 
@@ -282,6 +292,7 @@ class ViewClient(EventClient):
                     await self.handle_user_action(choice)
                 else:
                     self.show_initial_menu()
+                    print("/. 관리장 실행")  # 관리장 메뉴 추가
                     with patch_stdout():
                         choice = await self.session.prompt_async("메뉴를 선택하세요: ")
                         choice = choice.strip()
