@@ -39,8 +39,19 @@ class EventClient:
                 if not data:
                     print("\n서버 연결이 끊어졌습니다.")
                     break
-                # 데이터를 큐에 추가
-                await self.queue.put(data.decode('utf-8'))
+                msg = data.decode('utf-8')
+                # 명령 응답(response:)과 알림(notify:) 구분
+                if msg.startswith("response:"):
+                    # response: 이후 내용만 queue에 넣음
+                    await self.queue.put(msg[len("response:"):].strip())
+                elif msg.startswith("notify:"):
+                    # notify: 이후 내용은 별도 처리(알림 출력용)
+                    # 알림 출력용 큐나 별도 처리를 위한 구조 필요
+                    # 여기서는 간단히 알림을 바로 출력 (prompt_toolkit 상태에서는 print 사용 주의)
+                    print(f"[서버 알림]: {msg[len('notify:'):].strip()}")
+                else:
+                    # 구분자가 없으면 일단 응답으로 처리
+                    await self.queue.put(msg.strip())
         except Exception as e:
             print(f"메시지 수신 중 오류 발생: {e}")
 
@@ -58,6 +69,15 @@ class EventClient:
             self.writer.close()
             await self.writer.wait_closed()
         print("서버 연결 종료.")
+
+    # async def print_incoming_messages(self):
+    #     """큐에서 오는 모든 메시지를 실시간 출력"""
+    #     while True:
+    #         msg = await self.queue.get()
+    #         # 여기서는 단순히 서버에서 온 모든 메시지를 출력
+    #         # 필요하다면 명령응답과 알림을 구분하는 로직을 추가할 수도 있음.
+    #         print(f"[서버 알림]: {msg}")
+
         
 class ViewClient(EventClient):      
     def __init__(self):
@@ -235,6 +255,7 @@ class ViewClient(EventClient):
     async def run_menu(self):
         """메뉴 실행"""
         asyncio.create_task(self.receive())  # 수신 루프를 백그라운드에서 실행
+        # asyncio.create_task(self.print_incoming_messages())
         while True:
             try:
                 if self.login_user:

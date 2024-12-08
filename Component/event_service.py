@@ -140,11 +140,12 @@ class AsyncEventService:
 
             waitlist_user_id = waitlist_user[0]
             # event 이름 조회
-            event_name = await self.db_connector.execute_query( 
+            event_name1 = await self.db_connector.execute_query( 
                 "SELECT name FROM events WHERE id = ?",
                 params=(event_id,),
                 fetch_one=True
             )
+            event_name = event_name1[0]
             #예약을 다시 하니까 좌석 불가능으로
             await self.db_connector.execute_query(
                 "UPDATE seats SET status = '예약 불가능' WHERE event_id = ? AND seat_number = ?",
@@ -164,13 +165,15 @@ class AsyncEventService:
             logging.debug(f"[cancel_reservation] 온라인: {self.clients}")
             # 클라이언트 연결 상태 확인
             if waitlist_user_id in self.clients:
-                client_socket = self.clients[waitlist_user_id]
-                message = f"예약하신 이벤트 {event_name}에서 좌석이 확보되었습니다."
+                target_writer = self.clients[waitlist_user_id]
+                message = f"notify:예약하신 이벤트 {event_name}에서 좌석이 확보되었습니다."
                 try:
-                    client_socket.sendall(message.encode('utf-8'))
+                    target_writer.write(message.encode('utf-8'))
+                    await target_writer.drain()
                     logging.info(f"Message sent to user {waitlist_user_id}: {message}")
                 except Exception as e:
                     logging.error(f"Error sending message to user {waitlist_user_id}: {e}")
+                    return f"handle 실패"
 
             # 대기자 목록에서 삭제
             await self.db_connector.execute_query(

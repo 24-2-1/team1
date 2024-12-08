@@ -48,31 +48,31 @@ class CommandHandler:
             'check_reservation_status': lambda args: self.event_service.get_all_reservations_for_user(*args)  # 예약 상태 조회 수정
         }
 
-    async def handle_command(self, data,writer):
-        """명령어 처리"""
+    async def handle_command(self, data, writer):
         try:
             commands = data.strip().split(' ')
             command = commands[0].lower()
 
             if command in self.command_map:
-                if command == 'view_events':
-                    # view_events는 인자가 필요 없으므로 빈 리스트를 넘깁니다.
-                    return await self.command_map[command]([])             
-                # 모든 다른 명령어를 처리
-                response = await self.command_map[command](commands[1:])
-                if command == "login":
-                    if response != "로그인 실패":
-                        clients[commands[1]] = writer  # 로그인 성공 시 clients에 추가
-                    return response
-                return response              
-            else:
-                return f"client와 event_service 실행 함수가 달라"
+                # view_events는 인자가 없으니 [] 전달
+                args = commands[1:] if command != 'view_events' else []
+                response = await self.command_map[command](args)
 
+                # 여기서 response: 접두어를 붙여줌
+                response = f"response:{response}"  
+                
+                # 로그인 성공 시 clients에 등록하는 로직도 그대로
+                if command == "login" and response != "response:로그인 실패":
+                    clients[commands[1]] = writer  
+                
+                return response
+            else:
+                return "response:client와 event_service 실행 함수가 달라"
         except TypeError:
-            return "TypeError"
+            return "response:TypeError"
         except Exception as e:
             print(f"Unexpected error in handle_command: {e}")
-            return f"그냥 에러"
+            return "response:그냥 에러"
 
 class SocketServer:
     """소켓 서버 클래스"""
