@@ -70,14 +70,6 @@ class EventClient:
             await self.writer.wait_closed()
         print("서버 연결 종료.")
 
-    # async def print_incoming_messages(self):
-    #     """큐에서 오는 모든 메시지를 실시간 출력"""
-    #     while True:
-    #         msg = await self.queue.get()
-    #         # 여기서는 단순히 서버에서 온 모든 메시지를 출력
-    #         # 필요하다면 명령응답과 알림을 구분하는 로직을 추가할 수도 있음.
-    #         print(f"[서버 알림]: {msg}")
-
         
 class ViewClient(EventClient):      
     def __init__(self):
