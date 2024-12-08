@@ -81,10 +81,16 @@ class ViewClient(EventClient):
             print("메뉴창으로 돌아가려면 0번 입력")
             name = await self.session.prompt_async("아이디 입력: ")
             name = name.strip()
+            if not name:
+                print("아이디는 비워둘 수 없습니다. 다시 입력하세요.")  # 수정됨
+                continue
             if name == "0":
                 return
             password = await self.session.prompt_async("비밀번호 입력: ")
             password = password.strip()
+            if not password:
+                print("비밀번호는 비워둘 수 없습니다. 다시 입력하세요.")  # 수정됨
+                continue            
             command = f"register {name} {password}"
             await self.send(command)
             response = await self.get_response()  # 큐에서 응답 가져오기
@@ -103,8 +109,14 @@ class ViewClient(EventClient):
             userid = userid.strip()
             if userid == "0":
                 return
+            if not userid:
+                print("아이디는 비워둘 수 없습니다. 다시 입력하세요.")  # 수정됨
+                continue
             password = await self.session.prompt_async("비밀번호 입력: ")
             password = password.strip()
+            if not password:
+                print("비밀번호는 비워둘 수 없습니다. 다시 입력하세요.")  # 수정됨
+                continue
             command = f"login {userid} {password}"
             await self.send(command)
             response = await self.get_response()  # 큐에서 응답 가져오기
@@ -173,6 +185,9 @@ class ViewClient(EventClient):
     async def reserve_ticket(self):
         """티켓 예약"""
         event_id = await self.session.prompt_async("Enter event ID to reserve: ")
+        if not event_id:
+            print("이벤트 ID는 비워둘 수 없습니다. 다시 입력하세요.")  # 수정됨
+            return await self.reserve_ticket()        
         command = f"view_seat {event_id}"
         await self.send(command)
         response = await self.get_response()  # 큐에서 응답 가져오기
@@ -182,6 +197,9 @@ class ViewClient(EventClient):
         print(response)
         # 예약할 좌석을 입력받음
         seat_number = await self.session.prompt_async("좌석번호 입력: ex) A1, B1, C3): ")  # 좌석 번호 입력 받기
+        if not seat_number:
+            print("좌석 번호는 비워둘 수 없습니다. 다시 입력하세요.")  # 수정됨
+            return await self.reserve_ticket()
         command = f"reserve_ticket {self.login_user} {event_id} {seat_number}"  # 좌석 번호를 포함한 명령어 전송
         await self.send(command)
         response = await self.get_response()  # 큐에서 응답 가져오기
