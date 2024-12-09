@@ -2,7 +2,33 @@ import asyncio
 from DB.db import initialize_database, AsyncDatabaseConnector
 from Component.user_service import AsyncUserService
 from Component.event_service import AsyncEventService
+import logging
 
+# 로그 설정
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("server.log"),
+        logging.StreamHandler()
+    ]
+)
+class SpecificFunctionFilter(logging.Filter):
+    """특정 함수의 로그만 필터링"""
+    def __init__(self, functions):
+        super().__init__()
+        self.functions = functions
+
+    def filter(self, record):
+        # 로그 메시지에 특정 함수 이름이 포함되어 있는지 확인
+        return any(func in record.msg for func in self.functions)
+# 필터 추가
+function_filter = SpecificFunctionFilter(functions=["[handle_waitlist]", "[cancel_reservation]"])
+for handler in logging.getLogger().handlers:
+    handler.addFilter(function_filter)
+
+
+clients = {}
 class CommandHandler:
     """명령어 처리 클래스"""
     def __init__(self, user_service, event_service):
@@ -13,30 +39,40 @@ class CommandHandler:
         self.command_map = {
             'register': lambda args: self.user_service.register_user(*args),
             'login': lambda args: self.user_service.login(*args),
-            'reserve': lambda args: self.event_service.reserve_ticket(*map(int, args)),
-            'cancel': lambda args: self.event_service.cancel_reservation(*map(int, args)),
-            'view_events': lambda args: self.event_service.get_all_events(),  # 수정
-            'view_logs': lambda args: self.event_service.get_user_logs(int(args[0]))  # 추가된 명령어
+            'logout': lambda args: self.user_service.logout(*args),
+            'view_events': lambda args: self.event_service.get_all_events(*args),  # 수정
+            'check_log': lambda args: self.event_service.get_user_logs(*args), # 알람확인
+            'reserve_ticket': lambda args: self.event_service.reserve_ticket(*args),
+            'cancel': lambda args: self.event_service.cancel_reservation(*args),
+            'view_seat': lambda args: self.event_service.get_seat_availability(args[0]),  # 좌석 조회 추가
+            'check_reservation_status': lambda args: self.event_service.get_all_reservations_for_user(*args),  # 예약 상태 조회 수정
         }
-
-    async def handle_command(self, data):
-        """명령어 처리"""
+    
+    async def handle_command(self, data, writer):
         try:
             commands = data.strip().split(' ')
             command = commands[0].lower()
 
-            # 명령 처리 로직
             if command in self.command_map:
-                if command == 'view_events':  # view_events는 인자가 필요 없음
-                    return await self.command_map[command]([])
-                return await self.command_map[command](commands[1:])
+                # view_events는 인자가 없으니 [] 전달
+                args = commands[1:] if command != 'view_events' else []
+                response = await self.command_map[command](args)
+
+                # 여기서 response: 접두어를 붙여줌
+                response = f"response:{response}"  
+                
+                # 로그인 성공 시 clients에 등록하는 로직도 그대로
+                if command == "login" and response != "response:로그인 실패":
+                    clients[commands[1]] = writer  
+                
+                return response
             else:
-                return "Error: Unknown command"
+                return "response:client와 event_service 실행 함수가 달라"
         except TypeError:
-            return "Error: Invalid arguments"
+            return "response:TypeError"
         except Exception as e:
             print(f"Unexpected error in handle_command: {e}")
-            return "Error: Request failed"
+            return "response:그냥 에러"
 
 class SocketServer:
     """소켓 서버 클래스"""
@@ -44,13 +80,14 @@ class SocketServer:
         self.host = host
         self.port = port
         self.db_connector = AsyncDatabaseConnector()
-        self.user_service = AsyncUserService(self.db_connector)
-        self.event_service = AsyncEventService(self.db_connector)
+        self.user_service = AsyncUserService(self.db_connector,clients)
+        self.event_service = AsyncEventService(self.db_connector,clients)
         self.command_handler = CommandHandler(self.user_service, self.event_service)
-
+    
     async def handle_client(self, reader, writer):
         """클라이언트 요청 처리"""
         addr = writer.get_extra_info('peername')
+        current_user = None
         print(f"Connected to {addr}")
 
         try:
@@ -61,17 +98,20 @@ class SocketServer:
                         print(f"Connection closed by client: {addr}")
                         break
 
-                    message = data.decode().strip()
+                    message = data.decode('utf-8').strip()
                     print(f"Received: {message} from {addr}")
 
                     # 명령어 처리
-                    response = await self.command_handler.handle_command(message)
-                    writer.write(response.encode())
+                    response = await self.command_handler.handle_command(message,writer)
+                    writer.write(response.encode('utf-8'))
                     await writer.drain()
+                    
+                    if message.startswith("login"):
+                        current_user = message.split(' ')[1]
 
                 except Exception as e:
                     print(f"Error handling request from {addr}: {e}")
-                    writer.write(f"Error: {e}".encode())
+                    writer.write(f"Error: {e}".encode('utf-8'))
                     await writer.drain()
 
         except asyncio.CancelledError:
@@ -81,6 +121,8 @@ class SocketServer:
             print(f"Unexpected error with client {addr}: {e}")
         finally:
             # 연결 종료 시 자원 정리
+            if current_user and current_user in clients:
+                del clients[current_user]
             print(f"Disconnected from {addr}")
             writer.close()
             await writer.wait_closed()

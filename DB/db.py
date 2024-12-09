@@ -1,11 +1,13 @@
 import aiosqlite
 import asyncio
 import os
+
 class AsyncDatabaseConnector:
     def __init__(self, db_name="event_system.db"):
         # server 디렉토리의 절대경로를 기준으로 데이터베이스 파일 경로 설정
         self.db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), db_name)
         self.connection = None
+
     async def connect(self):
         if not self.connection:
             self.connection = await aiosqlite.connect(self.db_path)
@@ -13,6 +15,7 @@ class AsyncDatabaseConnector:
     async def __aenter__(self):
         self.connection = await self.connect()
         return self.connection
+
     async def __aexit__(self, exc_type, exc_value, traceback):
         if self.connection:
             await self.connection.close()
@@ -30,11 +33,14 @@ class AsyncDatabaseConnector:
                     await conn.commit()
         except Exception as e:
             print(f"Error executing query: {e}")
+
+
 # 데이터베이스 초기화
 async def initialize_database():
     """데이터베이스 초기화"""
     base_dir = os.path.dirname(os.path.abspath(__file__))
     db_path = os.path.join(base_dir, "event_system.db")
+
     connector = AsyncDatabaseConnector(db_name=db_path)
     async with connector as conn:
         async with conn.cursor() as cursor:
@@ -43,7 +49,7 @@ async def initialize_database():
                 cursor.execute('''
                 CREATE TABLE IF NOT EXISTS users (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    username TEXT UNIQUE NOT NULL,
+                    userid TEXT UNIQUE NOT NULL,
                     password TEXT NOT NULL
                 )
                 '''),
@@ -61,6 +67,8 @@ async def initialize_database():
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER NOT NULL,
                     event_id INTEGER NOT NULL,
+                    event_name TEXT NOT NULL,
+                    seat_number TEXT,
                     FOREIGN KEY(user_id) REFERENCES users(id),
                     FOREIGN KEY(event_id) REFERENCES events(id)
                 )
@@ -70,6 +78,7 @@ async def initialize_database():
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER NOT NULL,
                     event_id INTEGER NOT NULL,
+                    event_name TEXT,
                     FOREIGN KEY(user_id) REFERENCES users(id),
                     FOREIGN KEY(event_id) REFERENCES events(id)
                 )
@@ -82,9 +91,20 @@ async def initialize_database():
                     event_id INTEGER,
                     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
+                '''),
+                cursor.execute('''
+                CREATE TABLE IF NOT EXISTS seats (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_id INTEGER NOT NULL,
+                    seat_number TEXT NOT NULL,
+                    status TEXT NOT NULL,  -- "예약 가능" 또는 "예약 불가능",
+                    FOREIGN KEY(event_id) REFERENCES events(id)
+                )
                 ''')
             ]
             
             # 병렬 실행 및 완료 대기
             await asyncio.gather(*tasks)
             await conn.commit()
+        
+
