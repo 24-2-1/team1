@@ -201,7 +201,7 @@ class ViewClient(EventClient):
         
         # 서버에서 받은 응답 처리
         response = await self.get_response()  # 큐에서 응답 가져오기
-        print(f"사용자 기록:\n{response}")
+        print(f"사용자 기록:\n")
         print(response)  # 서버에서 받은 응답 출력
         await self.session.prompt_async("메뉴로 돌아가려면 [Enter]")
              
