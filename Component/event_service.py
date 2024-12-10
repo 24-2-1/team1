@@ -23,7 +23,7 @@ class AsyncEventService:
             # 좌석 번호가 입력되지 않으면 좌석을 예약할 수 없다.
             if not seat_number:
                 return f"좌석을 선택 안했어 다시 해"
-            logging.debug(f"[cancel_reservation] 티켓 예약 처음: {event_id}")
+            # logging.debug(f"[cancel_reservation] 티켓 예약 처음: {event_id}")
             available_tickets_info = await self.db_connector.execute_query(
                 "SELECT name,available_tickets FROM events WHERE id = ?", 
                 params=(event_id,), 
@@ -34,20 +34,20 @@ class AsyncEventService:
                 event_name, available_tickets = available_tickets_info
             else:    
                 return f"티켓 예약중인데 event에서 {event_id}를 찾을 수가 없어"
-            logging.debug(f"[cancel_reservation] 티켓 예약 처음: {event_name}")
+            # logging.debug(f"[cancel_reservation] 티켓 예약 처음: {event_name}")
             if not available_tickets or available_tickets <= 0:
                 await self.db_connector.execute_query(
                 "INSERT INTO waitlist (user_id, event_id, event_name) VALUES (?, ?, ?)", 
                 params=(user_id, event_id, event_name)
             )
                 return f"대기자로 갔어"
-            logging.debug(f"[cancel_reservation] 티켓개수 확인 뒤: {user_id}")
+            # logging.debug(f"[cancel_reservation] 티켓개수 확인 뒤: {user_id}")
             seat_exists = await self.db_connector.execute_query(
                 "SELECT status FROM seats WHERE event_id = ? AND seat_number = ?",
                 params=(event_id, seat_number),
                 fetch_one=True
             )
-            logging.debug(f"[cancel_reservation] 빈좌석확인: {seat_exists}")
+            # logging.debug(f"[cancel_reservation] 빈좌석확인: {seat_exists}")
             
             if not seat_exists:
                 return f"좌석을 찾을 수 없습니다."
@@ -115,7 +115,7 @@ class AsyncEventService:
                 fetch_one=True
             )
             await log_action(self.db_connector, user_id, f"{event_name} 예약 취소 성공", event_id)
-            logging.debug(f"[cancel_reservation] after wait: {available_tickets[0]}")
+            # logging.debug(f"[cancel_reservation] after wait: {available_tickets[0]}")
 
             if available_tickets and available_tickets[0] > 0:
                 await self.handle_waitlist(event_id,seat)
@@ -127,7 +127,7 @@ class AsyncEventService:
         """대기자 목록 처리"""
         try:
             # 대기자 조회
-            logging.debug(f"[cancel_reservation] handle: {seat_number}")
+            # logging.debug(f"[cancel_reservation] handle: {seat_number}")
 
             waitlist_user = await self.db_connector.execute_query(
                 "SELECT user_id FROM waitlist WHERE event_id = ? ORDER BY id ASC LIMIT 1",
@@ -151,7 +151,7 @@ class AsyncEventService:
                 "UPDATE seats SET status = '예약 불가능' WHERE event_id = ? AND seat_number = ?",
                 params=(event_id, seat_number)
             )
-            logging.debug(f"[cancel_reservation] 대기자: {waitlist_user_id}")
+            # logging.debug(f"[cancel_reservation] 대기자: {waitlist_user_id}")
             #대기자를 예약자에 추가
             await self.db_connector.execute_query( 
                 "INSERT INTO reservations (user_id, event_id,event_name,seat_number) VALUES (?, ?, ?, ?)", 
@@ -162,7 +162,7 @@ class AsyncEventService:
                 "UPDATE events SET available_tickets = available_tickets - 1 WHERE id = ?",
                 params=(event_id,)
             )
-            logging.debug(f"[cancel_reservation] 온라인: {self.clients}")
+            # logging.debug(f"[cancel_reservation] 온라인: {self.clients}")
             # 클라이언트 연결 상태 확인
             if waitlist_user_id in self.clients:
                 target_writer = self.clients[waitlist_user_id]
@@ -170,9 +170,9 @@ class AsyncEventService:
                 try:
                     target_writer.write(message.encode('utf-8'))
                     await target_writer.drain()
-                    logging.info(f"Message sent to user {waitlist_user_id}: {message}")
+                    # logging.info(f"Message sent to user {waitlist_user_id}: {message}")
                 except Exception as e:
-                    logging.error(f"Error sending message to user {waitlist_user_id}: {e}")
+                    # logging.error(f"Error sending message to user {waitlist_user_id}: {e}")
                     return f"handle 실패"
 
             # 대기자 목록에서 삭제
@@ -294,3 +294,4 @@ async def log_action(db_connector: AsyncDatabaseConnector, user_id, action, even
             )
     except Exception as e:
         print(f"Error logging action: {e}")
+
