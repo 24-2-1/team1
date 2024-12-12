@@ -72,10 +72,10 @@ class EventClient:
         print("서버 연결 종료.")
 
         
-class ViewClient(EventClient):      
+class ViewClient(EventClient):
     def __init__(self):
         super().__init__()
-         
+
     async def register(self):
         """회원가입 요청 처리"""
         check_register=None
@@ -237,7 +237,66 @@ class ViewClient(EventClient):
                     print(response)     
             if check_reserve == True:
                 break
-                 
+
+    async def transfer_ticket(self):
+        """티켓 양도"""
+        while True:
+            while True:
+                event_id = await self.session.prompt_async("양도할 이벤트 ID 입력: ")
+                event_id = event_id.strip()
+                if not event_id:
+                    print("이벤트 ID는 공백일 수 없습니다. 다시 입력하세요.")
+                    continue
+
+                # 서버에서 이벤트 ID 유효성 검사
+                command = f"validate_event {event_id}"
+                await self.send(command)
+                response = await self.get_response()
+                if response != "유효한 이벤트 ID입니다.":
+                    print(response)
+                    continue
+                break
+
+            while True:
+                seat_number = await self.session.prompt_async("양도할 좌석 번호 입력 (예: A1): ")
+                seat_number = seat_number.strip()
+                if not seat_number:
+                    print("좌석 번호는 공백일 수 없습니다. 다시 입력하세요.")
+                    continue
+
+                # 서버에서 좌석 번호 유효성 검사
+                command = f"validate_seat {event_id} {seat_number}"
+                await self.send(command)
+                response = await self.get_response()
+                if response != "유효한 좌석 번호입니다.":
+                    print(response)
+                    continue
+                break
+
+            while True:
+                target_user_id = await self.session.prompt_async("양도받을 사용자 ID 입력: ")
+                target_user_id = target_user_id.strip()
+                if not target_user_id:
+                    print("양도받을 사용자 ID는 공백일 수 없습니다. 다시 입력하세요.")
+                    continue
+
+                # 서버에서 사용자 ID 유효성 검사
+                command = f"validate_user {target_user_id}"
+                await self.send(command)
+                response = await self.get_response()
+                if response != "유효한 사용자 ID입니다.":
+                    print(response)
+                    continue
+                break
+
+            command = f"transfer_ticket {self.login_user} {event_id} {seat_number} {target_user_id}"
+            await self.send(command)
+            response = await self.get_response()
+            if response == "양도하려는 티켓이 없거나 예약하지 않았습니다":
+                print(response)
+                continue
+            break
+
         
     async def cancel_reserve(self):
         """이벤트 취소"""
@@ -277,6 +336,7 @@ class ViewClient(EventClient):
         print("4. 예약 취소")  # 예약 취소 선택지
         print("5. 기록 확인")  # 알림 확인 선택지
         print("6. 예약 현황 조회")
+        print("7. 티켓 양도")  # 로그인 후 메뉴에 티켓 양도 추가
         print("9. 로그아웃")  # 로그아웃 선택지
         print("0. 종료")  
 
@@ -298,6 +358,7 @@ class ViewClient(EventClient):
             "4": self.cancel_reserve,  # 티켓 취소 처리
             "5": self.check_log,  # 알림 확인 처리
             "6": self.check_reservation_status,  # 예약 현황 조회 추가
+            "7": self.transfer_ticket,  # 티켓 양도
             "9": self.logout,  # 로그아웃 처리
         }
         return await self._handle_action(actions, choice)  # 선택한 액션 처리

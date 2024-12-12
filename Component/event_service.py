@@ -122,6 +122,70 @@ class AsyncEventService:
 
             return f"Reservation canceled for user {user_id} on event {event_id}"
 
+    async def transfer_ticket(self, current_user_id, event_id, seat_number, target_user_id):
+        """티켓 양도"""
+        event_lock = await self.get_event_lock(event_id)
+        async with event_lock:
+
+            # 현재 예약 상태 확인
+            reservation_exists = await self.db_connector.execute_query(
+                "SELECT user_id FROM reservations WHERE user_id = ? AND event_id = ? AND seat_number = ?",
+                params=(current_user_id, event_id, seat_number),
+                fetch_one=True
+            )
+            if not reservation_exists:
+                return f"양도하려는 티켓이 없거나 예약하지 않았습니다"
+
+            # 예약 업데이트: 예약자 변경
+            await self.db_connector.execute_query(
+                "UPDATE reservations SET user_id = ? WHERE user_id = ? AND event_id = ? AND seat_number = ?",
+                params=(target_user_id, current_user_id, event_id, seat_number)
+            )
+
+            # 로그 기록
+            await log_action(self.db_connector, current_user_id, f"티켓 {event_id}-{seat_number} 양도 -> {target_user_id}", event_id)
+            await log_action(self.db_connector, target_user_id, f"티켓 {event_id}-{seat_number} 양도 받음 <- {current_user_id}", event_id)
+
+            # 알림 처리
+            if target_user_id in self.clients:
+                target_writer = self.clients[target_user_id]
+                message = f"notify:이벤트 {event_id}-{seat_number} 티켓이 {current_user_id}로부터 양도되었습니다."
+                try:
+                    target_writer.write(message.encode('utf-8'))
+                    await target_writer.drain()
+                except Exception as e:
+                    print(f"알림 전송 실패: {e}")
+
+            return f"티켓 {event_id}-{seat_number}이 {target_user_id}에게 성공적으로 양도되었습니다."
+
+    async def validate_event(self, event_id):
+        """이벤트 ID 유효성 검사"""
+        event_exists = await self.db_connector.execute_query(
+            "SELECT id FROM events WHERE id = ?", 
+            params=(event_id,), 
+            fetch_one=True
+        )
+        return "유효하지 않은 이벤트 ID입니다." if not event_exists else "유효한 이벤트 ID입니다."
+
+    async def validate_seat(self, event_id, seat_number):
+        """좌석 번호 유효성 검사"""
+        seat_exists = await self.db_connector.execute_query(
+            "SELECT seat_number FROM seats WHERE event_id = ? AND seat_number = ?", 
+            params=(event_id, seat_number), 
+            fetch_one=True
+        )
+        return "유효하지 않은 좌석 번호입니다." if not seat_exists else "유효한 좌석 번호입니다."
+
+    async def validate_user(self, user_id):
+        """사용자 ID 유효성 검사"""
+        user_exists = await self.db_connector.execute_query(
+            "SELECT userid FROM users WHERE userid = ?", 
+            params=(user_id,), 
+            fetch_one=True
+        )
+        return "유효하지 않은 사용자 ID입니다." if not user_exists else "유효한 사용자 ID입니다."
+
+
         
     async def handle_waitlist(self, event_id,seat_number):
         """대기자 목록 처리"""
