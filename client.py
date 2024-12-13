@@ -338,7 +338,7 @@ class ViewClient(EventClient):
         print("6. 예약 현황 조회")
         print("7. 티켓 양도")  # 로그인 후 메뉴에 티켓 양도 추가
         print("9. 로그아웃")  # 로그아웃 선택지
-        print("0. 종료")  
+        print("0. 종료")
 
     async def handle_guest_action(self, choice):
         actions = {
@@ -371,7 +371,7 @@ class ViewClient(EventClient):
             return True
         else:
             print("올바르지 않은 선택입니다. 다시 시도하세요.")  # 잘못된 선택 처리
-            return False        
+            return False
         
     async def run_menu(self):
         """메뉴 실행"""

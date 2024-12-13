@@ -63,11 +63,11 @@ class CommandHandler:
                 response = await self.command_map[command](args)
 
                 # 여기서 response: 접두어를 붙여줌
-                response = f"response:{response}"  
+                response = f"response:{response}"
                 
                 # 로그인 성공 시 clients에 등록하는 로직도 그대로
                 if command == "login" and response != "response:로그인 실패":
-                    clients[commands[1]] = writer  
+                    clients[commands[1]] = writer
                 
                 return response
             else:
